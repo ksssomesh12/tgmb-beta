@@ -167,8 +167,9 @@ class MirrorInfo:
         self.status: str = ''
         self.url: str = ''
         self.tag: str = ''
+        self.googleDriveDownloadSourceId: str = ''
         self.uploadUrl: str = ''
-        self.googleDriveFolderId: str = ''
+        self.googleDriveUploadFolderId: str = ''
         self.isUrl: bool = False
         self.isMagnet: bool = False
         self.isAriaDownload: bool = False
@@ -287,15 +288,20 @@ class MirrorListener:
 
     def onDownloadStart(self, mirrorInfo: MirrorInfo):
         if mirrorInfo.isAriaDownload:
-            self.mirrorHelper.ariaHelper.addDownload(mirrorInfo)
+            initThread(target=self.mirrorHelper.ariaHelper.addDownload,
+                       name=f'{mirrorInfo.uid}-AriaDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isGoogleDriveDownload:
-            self.mirrorHelper.googleDriveHelper.addDownload(mirrorInfo)
+            initThread(target=self.mirrorHelper.googleDriveHelper.addDownload,
+                       name=f'{mirrorInfo.uid}-GoogleDriveDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isMegaDownload:
-            self.mirrorHelper.megaHelper.addDownload(mirrorInfo)
+            initThread(target=self.mirrorHelper.megaHelper.addDownload,
+                       name=f'{mirrorInfo.uid}-MegaDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isTelegramDownload:
-            self.mirrorHelper.telegramHelper.addDownload(mirrorInfo)
+            initThread(target=self.mirrorHelper.telegramHelper.addDownload,
+                       name=f'{mirrorInfo.uid}-TelegramDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isYouTubeDownload:
-            self.mirrorHelper.youTubeHelper.addDownload(mirrorInfo)
+            initThread(target=self.mirrorHelper.youTubeHelper.addDownload,
+                       name=f'{mirrorInfo.uid}-YouTubeDownload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.downloadProgress)
 
     def onDownloadProgress(self, mirrorInfo: MirrorInfo):
@@ -331,7 +337,7 @@ class MirrorListener:
 
     def onCompressionStart(self, mirrorInfo: MirrorInfo):
         initThread(target=self.mirrorHelper.compressionHelper.addCompression,
-                   name=f'{mirrorInfo.uid}-opCompression', mirrorInfo=mirrorInfo)
+                   name=f'{mirrorInfo.uid}-Compression', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.compressionProgress)
 
     def onCompressionProgress(self, mirrorInfo: MirrorInfo):
@@ -367,7 +373,7 @@ class MirrorListener:
 
     def onDecompressionStart(self, mirrorInfo: MirrorInfo):
         initThread(target=self.mirrorHelper.decompressionHelper.addDecompression,
-                   name=f'{mirrorInfo.uid}-opDecompression', mirrorInfo=mirrorInfo)
+                   name=f'{mirrorInfo.uid}-Decompression', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionProgress)
 
     def onDecompressionProgress(self, mirrorInfo: MirrorInfo):
@@ -399,13 +405,13 @@ class MirrorListener:
     def onUploadStart(self, mirrorInfo: MirrorInfo):
         if mirrorInfo.isGoogleDriveUpload:
             initThread(target=self.mirrorHelper.googleDriveHelper.addUpload,
-                       name=f'{mirrorInfo.uid}-opGoogleDriveUpload', mirrorInfo=mirrorInfo)
+                       name=f'{mirrorInfo.uid}-GoogleDriveUpload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isMegaUpload:
             initThread(target=self.mirrorHelper.megaHelper.addUpload,
-                       name=f'{mirrorInfo.uid}-opMegaUpload', mirrorInfo=mirrorInfo)
+                       name=f'{mirrorInfo.uid}-MegaUpload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isTelegramUpload:
             initThread(target=self.mirrorHelper.telegramHelper.addUpload,
-                       name=f'{mirrorInfo.uid}-opTelegramUpload', mirrorInfo=mirrorInfo)
+                       name=f'{mirrorInfo.uid}-TelegramUpload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.uploadProgress)
 
     def onUploadProgress(self, mirrorInfo: MirrorInfo):
@@ -483,24 +489,45 @@ class GoogleDriveHelper:
         self.mirrorHelper = mirrorHelper
         self.oauthCreds: google.oauth2.credentials.Credentials
         self.oauthScopes: typing.List[str] = ['https://www.googleapis.com/auth/drive']
-        self.baseFileDownloadUrl = 'https://drive.google.com/uc?id={}&export=download'
-        self.baseFolderDownloadUrl = 'https://drive.google.com/drive/folders/{}'
+        self.baseFileDownloadUrl: str = 'https://drive.google.com/uc?id={}&export=download'
+        self.baseFolderDownloadUrl: str = 'https://drive.google.com/drive/folders/{}'
+        self.googleDriveFolderMimeType: str = 'application/vnd.google-apps.folder'
+        self.chunkSize: int = 32 * 1024 * 1024
 
     def addDownload(self, mirrorInfo: MirrorInfo):
-        pass
+        os.mkdir(mirrorInfo.path)
+        sourceId = mirrorInfo.googleDriveDownloadSourceId
+        isFolder = False
+        if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
+            isFolder = True
+        if mirrorInfo.isGoogleDriveUpload:
+            if isFolder:
+                folderId = self.cloneFolder(sourceFolderId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
+            else:
+                fileId = self.cloneFile(sourceFileId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
+        else:
+            if isFolder:
+                self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path)
+            else:
+                self.downloadFile(sourceFileId=sourceId, dlPath=mirrorInfo.path)
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str):
         raise NotImplementedError
 
     def addUpload(self, mirrorInfo: MirrorInfo):
-        uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
-        if os.path.isdir(uploadPath):
-            folderId = self.folderUpload(folderPath=uploadPath, parentFolderId=mirrorInfo.googleDriveFolderId)
-            self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
-        if os.path.isfile(uploadPath):
-            fileId = self.fileUpload(filePath=uploadPath, parentFolderId=mirrorInfo.googleDriveFolderId)
-            self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
+        if not mirrorInfo.isGoogleDriveDownload:
+            uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
+            if os.path.isdir(uploadPath):
+                folderId = self.uploadFolder(folderPath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
+            if os.path.isfile(uploadPath):
+                fileId = self.uploadFile(filePath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
+        else:
+            time.sleep(self.mirrorHelper.statusHelper.statusUpdateInterval)
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
 
     def cancelUpload(self, uid: str):
@@ -522,14 +549,24 @@ class GoogleDriveHelper:
             with open(tokenJsonFile, 'w') as token:
                 token.write(self.oauthCreds.to_json())
             if envVarDict['dynamicConfig'] == 'true':
-                logger.info(self.filePatch(f"{envVarDict['CWD']}/{tokenJsonFile}"))
+                logger.info(self.patchFile(f"{envVarDict['CWD']}/{tokenJsonFile}"))
                 updateFileidEnv()
 
     def buildService(self):
         return googleapiclient.discovery.build(serviceName='drive', version='v3', credentials=self.oauthCreds,
                                                cache_discovery=False)
 
-    def folderUpload(self, folderPath: str, parentFolderId: str):
+    def uploadFile(self, filePath: str, parentFolderId: str):
+        upStatus: googleapiclient.http.MediaUploadProgress
+        service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=True)
+        fileMetadata['parents'] = [parentFolderId]
+        fileOp = service.files().create(supportsTeamDrives=True, body=fileMetadata, media_body=mediaBody)
+        upResponse = None
+        while upResponse is None:
+            upStatus, upResponse = fileOp.next_chunk()
+        return upResponse['id']
+
+    def uploadFolder(self, folderPath: str, parentFolderId: str):
         folderName = folderPath.split('/')[-1]
         folderId = self.createFolder(folderName, parentFolderId)
         folderContents = os.listdir(folderPath)
@@ -537,14 +574,55 @@ class GoogleDriveHelper:
             for contentName in folderContents:
                 contentPath = os.path.join(folderPath, contentName)
                 if os.path.isdir(contentPath):
-                    self.folderUpload(contentPath, folderId)
+                    self.uploadFolder(contentPath, folderId)
                 if os.path.isfile(contentPath):
-                    self.fileUpload(contentPath, folderId)
+                    self.uploadFile(contentPath, folderId)
         return folderId
 
+    def cloneFile(self, sourceFileId: str, parentFolderId: str):
+        fileMetadata = {'parents': [parentFolderId]}
+        service = self.buildService()
+        return service.files().copy(supportsAllDrives=True, fileId=sourceFileId, body=fileMetadata).execute()['id']
+
+    def cloneFolder(self, sourceFolderId: str, parentFolderId: str):
+        sourceFolderName = self.getMetadataById(sourceFolderId, 'name')
+        folderId = self.createFolder(sourceFolderName, parentFolderId)
+        folderContents = self.getFolderContentsById(sourceFolderId)
+        if len(folderContents) != 0:
+            for content in folderContents:
+                if content.get('mimeType') == self.googleDriveFolderMimeType:
+                    self.cloneFolder(content.get('id'), folderId)
+                else:
+                    self.cloneFile(content.get('id'), folderId)
+        return folderId
+
+    def downloadFile(self, sourceFileId: str, dlPath: str):
+        fileName = self.getMetadataById(sourceFileId, 'name')
+        filePath = os.path.join(dlPath, fileName)
+        downStatus: googleapiclient.http.MediaDownloadProgress
+        service = self.buildService()
+        fileOp = googleapiclient.http.MediaIoBaseDownload(fd=open(filePath, 'wb'), chunksize=self.chunkSize,
+                                                          request=service.files().get_media(fileId=sourceFileId))
+        downResponse = None
+        while downResponse is None:
+            downStatus, downResponse = fileOp.next_chunk()
+        return downResponse['id']
+
+    def downloadFolder(self, sourceFolderId: str, dlPath: str):
+        folderName = self.getMetadataById(sourceFolderId, 'name')
+        folderPath = os.path.join(dlPath, folderName)
+        os.mkdir(folderPath)
+        folderContents = self.getFolderContentsById(sourceFolderId)
+        if len(folderContents) != 0:
+            for content in folderContents:
+                if content.get('mimeType') == self.googleDriveFolderMimeType:
+                    self.downloadFolder(content.get('id'), folderPath)
+                else:
+                    self.downloadFile(content.get('id'), folderPath)
+        return
+
     def createFolder(self, folderName: str, parentFolderId: str):
-        folderMetadata = {'name': folderName, 'parents': [parentFolderId],
-                          'mimeType': 'application/vnd.google-apps.folder'}
+        folderMetadata = {'name': folderName, 'parents': [parentFolderId], 'mimeType': self.googleDriveFolderMimeType}
         service = self.buildService()
         folderOp = service.files().create(supportsTeamDrives=True, body=folderMetadata).execute()
         return folderOp['id']
@@ -555,31 +633,39 @@ class GoogleDriveHelper:
         fileMimeType = magic.Magic(mime=True).from_file(filePath)
         fileMetadata = {'name': fileName, 'mimeType': fileMimeType}
         if isResumable:
-            mediaBody = googleapiclient.http.MediaFileUpload(filename=filePath, mimetype=fileMimeType,
-                                                             resumable=True, chunksize=32 * 1024 * 1024)
+            mediaBody = googleapiclient.http.MediaIoBaseUpload(fd=open(filePath, 'rb'), mimetype=fileMimeType,
+                                                               resumable=True, chunksize=self.chunkSize)
         else:
-            mediaBody = googleapiclient.http.MediaFileUpload(filename=filePath, mimetype=fileMimeType, resumable=False)
+            mediaBody = googleapiclient.http.MediaIoBaseUpload(fd=open(filePath, 'rb'), mimetype=fileMimeType,
+                                                               resumable=False)
         return service, fileName, fileMimeType, fileMetadata, mediaBody
 
-    def filePatch(self, filePath: str, fileId: str = ''):
+    def getMetadataById(self, sourceId: str, field: str):
+        service = self.buildService()
+        return service.files().get(supportsAllDrives=True, fileId=sourceId, fields=field).execute().get(field)
+
+    def getFolderContentsById(self, folderId: str):
+        service = self.buildService()
+        query = f"'{folderId}' in parents"
+        pageToken = None
+        folderContents = []
+        while True:
+            result = service.files().list(supportsTeamDrives=True, includeTeamDriveItems=True, spaces='drive',
+                                          fields='nextPageToken, files(name, id, mimeType, size)',
+                                          q=query, pageSize=200, pageToken=pageToken).execute()
+            for content in result.get('files', []):
+                folderContents.append(content)
+            pageToken = result.get('nextPageToken', None)
+            if not pageToken:
+                break
+        return folderContents
+
+    def patchFile(self, filePath: str, fileId: str = ''):
         service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         if fileId == '':
             fileId = envVarDict[fileName.upper().replace('.', '_')]
         fileOp = service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
-
-    def fileUpload(self, filePath: str, parentFolderId: str):
-        upStatus: googleapiclient.http.MediaUploadProgress
-        service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=True)
-        fileMetadata['parents'] = [parentFolderId]
-        fileOp = service.files().create(supportsTeamDrives=True, body=fileMetadata, media_body=mediaBody)
-        upResponse = None
-        while upResponse is None:
-            try:
-                upStatus, upResponse = fileOp.next_chunk()
-            except googleapiclient.errors.HttpError as err:
-                raise err
-        return upResponse['id']
 
 
 class MegaHelper:
@@ -656,7 +742,7 @@ class StatusHelper:
         self.mirrorHelper = mirrorHelper
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
-        self.statusUpdateInterval: int = 3
+        self.statusUpdateInterval: int = int(envVarDict['statusUpdateInterval'])
         self.msgId: int = 0
         self.chatId: int = 0
         self.lastStatusMsgId: int = 0
@@ -757,11 +843,15 @@ class MirrorHelper:
         self.compressionHelper = CompressionHelper(self)
         self.decompressionHelper = DecompressionHelper(self)
         self.statusHelper = StatusHelper(self)
+        self.regexMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
+        self.regexUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
+        self.regexGoogleDriveUrl = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
 
     def addMirror(self, msg: telegram.Message):
         isDl: bool
         mirrorInfo: MirrorInfo
         isDl, mirrorInfo = self.genMirrorInfo(msg)
+        logger.info(f'addMirror - [{isDl}] [{mirrorInfo.url}]')
         if isDl:
             logger.debug(vars(mirrorInfo))
             self.mirrorInfoDict[mirrorInfo.uid] = mirrorInfo
@@ -800,20 +890,23 @@ class MirrorHelper:
             statusMsgTxt += f'{mirrorInfo.uid} {mirrorInfo.status}\n'
         return statusMsgTxt
 
-    @staticmethod
-    def genMirrorInfo(msg: telegram.Message):
+    def genMirrorInfo(self, msg: telegram.Message):
         mirrorInfo: MirrorInfo = MirrorInfo(msg.message_id, msg.chat.id)
         mirrorInfo.isGoogleDriveUpload = True
-        mirrorInfo.googleDriveFolderId = envVarDict['googleDriveFolderId']
+        mirrorInfo.googleDriveUploadFolderId = envVarDict['googleDriveUploadFolderId']
         isDl: bool = True
         try:
             mirrorInfo.url = msg.text.split(' ')[1].strip()
             mirrorInfo.tag = msg.from_user.username
-            mirrorInfo.isAriaDownload = True
-            if isMagnet(mirrorInfo.url):
+            mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.url)
+            if mirrorInfo.googleDriveDownloadSourceId != '':
+                mirrorInfo.isGoogleDriveDownload = True
+            elif re.findall(self.regexMagnet, mirrorInfo.url):
                 mirrorInfo.isMagnet = True
-            elif isUrl(mirrorInfo.url):
+                mirrorInfo.isAriaDownload = True
+            elif re.findall(self.regexUrl, mirrorInfo.url):
                 mirrorInfo.isUrl = True
+                mirrorInfo.isAriaDownload = True
             else:
                 isDl = False
                 logger.info('No Valid Link Provided !')
@@ -833,6 +926,12 @@ class MirrorHelper:
                 isDl = False
                 logger.info('No Link Provided !')
         return isDl, mirrorInfo
+
+    def getIdFromUrl(self, url: str):
+        if 'folders' in url or 'file' in url:
+            result = re.search(self.regexGoogleDriveUrl, url)
+            return result.group(5)
+        return ''
 
 
 class NotSupportedArchiveFormat(Exception):
@@ -1036,18 +1135,6 @@ def initBotApi():
     dispatcher = updater.dispatcher
 
 
-def isMagnet(magnet: str):
-    if re.findall(regexMagnet, magnet):
-        return True
-    return False
-
-
-def isUrl(url: str):
-    if re.findall(regexUrl, url):
-        return True
-    return False
-
-
 def loadDat(fileName: str):
     lines = open(fileName, 'r').readlines()
     envName = []
@@ -1086,8 +1173,8 @@ def updateConfigEnvFiles(newKeys: list, newVals: list):
     fileReformat(configEnvFile)
     updateDat(configEnvFile, newKeys, newVals)
     if envVarDict['dynamicConfig'] == 'true':
-        logger.info(mirrorHelper.googleDriveHelper.filePatch(f"{envVarDict['CWD']}/{configEnvFile}"))
-        logger.info(mirrorHelper.googleDriveHelper.filePatch(f"{envVarDict['CWD']}/{configEnvBakFile}"))
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{configEnvFile}"))
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{configEnvBakFile}"))
         updateFileidEnv()
 
 
@@ -1119,7 +1206,7 @@ def updateFileidEnv():
         fileidEnvDat += f'{fileNameEnv} = "{envVarDict[fileNameEnv]}"\n'
         fileidEnvDat += f'{fileHashEnv} = "{envVarDict[fileHashEnv]}"\n'
     open(fileidEnvFile, 'wt').write(fileidEnvDat)
-    logger.info(mirrorHelper.googleDriveHelper.filePatch(f"{envVarDict['CWD']}/{fileidEnvFile}"))
+    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{fileidEnvFile}"))
 
 
 # loguru default format
@@ -1138,17 +1225,16 @@ tokenJsonFile = 'token.json'
 dynamicEnvFile = 'dynamic.env'
 fileidEnvFile = 'fileid.env'
 configFileList: [str] = [configEnvFile, configEnvBakFile, credsJsonFile, tokenJsonFile]
-reqEnvVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveFolderId']
-optEnvVarList: [str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir']
-optEnvVarValList: [str] = ['', 'tgmb-temp', 'dl']
+reqEnvVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderId']
+optEnvVarList: [str] = ['authorizedChats', 'enableTelegramUploads', 'ariaRpcSecret', 'dlRootDir',
+                        'statusUpdateInterval']
+optEnvVarValList: [str] = ['', 'false', 'tgmb-canary', 'dl', '5']
 envVarDict: {str: str} = {'CWD': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
 authorizedChatsList: [int] = []
-regexMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
-regexUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
 fileSizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
 
 warnings.filterwarnings("ignore")
@@ -1173,3 +1259,7 @@ mirrorHelper = MirrorHelper()
 mirrorHelper.googleDriveHelper.authorizeApi()
 
 dlRootDirPath = os.path.join(envVarDict['CWD'], envVarDict['dlRootDir'])
+
+if os.path.exists(dlRootDirPath):
+    shutil.rmtree(dlRootDirPath)
+os.mkdir(dlRootDirPath)

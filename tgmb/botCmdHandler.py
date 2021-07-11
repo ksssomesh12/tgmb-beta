@@ -114,7 +114,7 @@ def sync(update: telegram.Update, _: telegram.ext.CallbackContext):
         syncMsg = bot.sendMessage(text=syncMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                   reply_to_message_id=update.message.message_id)
         for fileName in configFileList:
-            logger.info(mirrorHelper.googleDriveHelper.filePatch(f"{envVarDict['CWD']}/{fileName}"))
+            logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{fileName}"))
         updateFileidEnv()
         logger.info('Sync Completed !')
         syncMsg.edit_text(f'Sync Completed !\n{configFileList}\nPlease /{BotCommands.Restart.command} !')
