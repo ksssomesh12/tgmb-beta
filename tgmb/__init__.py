@@ -43,132 +43,6 @@ import typing
 import warnings
 
 
-class WebhookServer:
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
-        self.listenAddress: str = 'localhost'
-        self.listenPort: int = 8448
-        self.webhookPath: str = 'mirrorListener'
-        self.webhookUrl: str = f'http://{self.listenAddress}:{self.listenPort}/{self.webhookPath}'
-        self.handlers = [(rf"/{self.webhookPath}/?", WebhookHandler, {'mirrorHelper': self.mirrorHelper})]
-        self.webhookApp = WebhookApp(self.handlers)
-        self.httpServer = tornado.httpserver.HTTPServer(self.webhookApp)
-        self.loop: typing.Optional[tornado.ioloop.IOLoop] = None
-        self.isRunning = False
-        self.serverLock = threading.Lock()
-        self.shutdownLock = threading.Lock()
-
-    def serveForever(self, forceEventLoop: bool = False, ready: threading.Event = None) -> None:
-        with self.serverLock:
-            self.isRunning = True
-            logger.debug('Webhook Server started.')
-            self.ensureEventLoop(forceEventLoop=forceEventLoop)
-            self.loop = tornado.ioloop.IOLoop.current()
-            self.httpServer.listen(self.listenPort, address=self.listenAddress)
-            if ready is not None:
-                ready.set()
-            self.loop.start()
-            logger.debug('Webhook Server stopped.')
-            self.isRunning = False
-
-    def shutdown(self) -> None:
-        with self.shutdownLock:
-            if not self.isRunning:
-                logger.warning('Webhook Server already stopped.')
-                return
-            self.loop.add_callback(self.loop.stop)
-
-    @staticmethod
-    def ensureEventLoop(forceEventLoop: bool = False) -> None:
-        try:
-            loop = asyncio.get_event_loop()
-            if (not forceEventLoop and os.name == 'nt' and sys.version_info >= (3, 8)
-                    and isinstance(loop, asyncio.ProactorEventLoop)):
-                raise TypeError('`ProactorEventLoop` is incompatible with Tornado.'
-                                'Please switch to `SelectorEventLoop`.')
-        except RuntimeError:
-            if (os.name == 'nt' and sys.version_info >= (3, 8) and hasattr(asyncio, 'WindowsProactorEventLoopPolicy')
-                    and (isinstance(asyncio.get_event_loop_policy(), asyncio.WindowsProactorEventLoopPolicy))):
-                logger.debug('Applying Tornado asyncio event loop fix for Python 3.8+ on Windows')
-                loop = asyncio.SelectorEventLoop()
-            else:
-                loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-
-class WebhookApp(tornado.web.Application):
-    def __init__(self, handlers: list):
-        tornado.web.Application.__init__(self, handlers)
-
-    def log_request(self, handler: tornado.web.RequestHandler) -> None:
-        pass
-
-
-class WebhookHandler(tornado.web.RequestHandler):
-    def __init__(self, application: tornado.web.Application, request: tornado.httputil.HTTPServerRequest, **kwargs):
-        super().__init__(application, request, **kwargs)
-
-    def initialize(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
-
-    def set_default_headers(self) -> None:
-        self.set_header("Content-Type", 'application/json; charset="utf-8"')
-
-    def post(self) -> None:
-        logger.debug('Webhook Triggered')
-        self._validate_post()
-        json_string = self.request.body.decode()
-        data = json.loads(json_string)
-        self.set_status(200)
-        logger.debug(f'Webhook Received Data: {data}')
-        initThread(target=self.mirrorHelper.mirrorListener.updateStatusCallback,
-                   name=f"{data['mirrorUid']}-{data['mirrorStatus']}", uid=data['mirrorUid'])
-
-    def _validate_post(self) -> None:
-        ct_header = self.request.headers.get("Content-Type", None)
-        if ct_header != 'application/json':
-            raise tornado.web.HTTPError(403)
-
-    def write_error(self, status_code: int, **kwargs: typing.Any) -> None:
-        super().write_error(status_code, **kwargs)
-        logger.debug("%s - - %s", self.request.remote_ip, "Exception in WebhookHandler", exc_info=kwargs['exc_info'])
-
-
-class BotCommands:
-    Start = telegram.BotCommand(command='start',
-                                description='StartCommand')
-    Help = telegram.BotCommand(command='help',
-                               description='HelpCommand')
-    Stats = telegram.BotCommand(command='stats',
-                                description='StatsCommand')
-    Ping = telegram.BotCommand(command='ping',
-                               description='PingCommand')
-    Restart = telegram.BotCommand(command='restart',
-                                  description='RestartCommand')
-    Logs = telegram.BotCommand(command='logs',
-                               description='LogsCommand')
-    Mirror = telegram.BotCommand(command='mirror',
-                                 description='MirrorCommand')
-    Status = telegram.BotCommand(command='status',
-                                 description='StatusCommand')
-    Cancel = telegram.BotCommand(command='cancel',
-                                 description='CancelCommand')
-    List = telegram.BotCommand(command='list',
-                               description='ListCommand')
-    Delete = telegram.BotCommand(command='delete',
-                                 description='DeleteCommand')
-    Authorize = telegram.BotCommand(command='authorize',
-                                    description='AuthorizeCommand')
-    Unauthorize = telegram.BotCommand(command='unauthorize',
-                                      description='UnauthorizeCommand')
-    Sync = telegram.BotCommand(command='sync',
-                               description='SyncCommand')
-    Top = telegram.BotCommand(command='top',
-                              description='TopCommand')
-    Config = telegram.BotCommand(command='Config',
-                                 description='ConfigCommand')
-
-
 class MirrorInfo:
     def __init__(self, msgId: int, chatId: int):
         self.msgId = msgId
@@ -178,6 +52,8 @@ class MirrorInfo:
         self.status: str = ''
         self.url: str = ''
         self.tag: str = ''
+        self.eta: float = 0
+        self.progress: float = 0
         self.googleDriveDownloadSourceId: str = ''
         self.uploadUrl: str = ''
         self.googleDriveUploadFolderId: str = ''
@@ -287,9 +163,11 @@ class MirrorListener:
 
     # TODO: improve method and maybe not use onCancelMirror callback in operationErrors and improve onOperationErrors
     def onCancelMirror(self, mirrorInfo: MirrorInfo):
+        shutil.rmtree(mirrorInfo.path)
         self.mirrorHelper.mirrorInfoDict.pop(mirrorInfo.uid)
 
-    def onDownloadQueue(self, _: MirrorInfo):
+    def onDownloadQueue(self, mirrorInfo: MirrorInfo):
+        self.resetMirrorProgress(mirrorInfo.uid)
         self.checkDownloadQueue()
 
     def checkDownloadQueue(self):
@@ -299,6 +177,7 @@ class MirrorListener:
             self.checkDownloadQueue()
 
     def onDownloadStart(self, mirrorInfo: MirrorInfo):
+        os.mkdir(mirrorInfo.path)
         if mirrorInfo.isAriaDownload:
             initThread(target=self.mirrorHelper.ariaHelper.addDownload,
                        name=f'{mirrorInfo.uid}-AriaDownload', mirrorInfo=mirrorInfo)
@@ -322,16 +201,15 @@ class MirrorListener:
     def onDownloadComplete(self, mirrorInfo: MirrorInfo):
         self.downloadQueue.remove(mirrorInfo.uid)
         self.downloadQueueActive -= 1
-        # self.checkDownloadQueue()
         self.compressionQueue.append(mirrorInfo.uid)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.compressionQueue)
+        self.checkDownloadQueue()
 
     def onDownloadError(self, mirrorInfo: MirrorInfo):
-        shutil.rmtree(mirrorInfo.path)
         self.downloadQueue.remove(mirrorInfo.uid)
         self.downloadQueueActive -= 1
-        # self.checkDownloadQueue()
         self.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
+        self.checkDownloadQueue()
 
     def onCompressionQueue(self, mirrorInfo: MirrorInfo):
         if not mirrorInfo.isCompress:
@@ -339,6 +217,7 @@ class MirrorListener:
             self.decompressionQueue.append(mirrorInfo.uid)
             self.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionQueue)
             return
+        self.resetMirrorProgress(mirrorInfo.uid)
         self.checkCompressionQueue()
 
     def checkCompressionQueue(self):
@@ -358,16 +237,15 @@ class MirrorListener:
     def onCompressionComplete(self, mirrorInfo: MirrorInfo):
         self.compressionQueue.remove(mirrorInfo.uid)
         self.compressionQueueActive -= 1
-        # self.checkCompressionQueue()
         self.decompressionQueue.append(mirrorInfo.uid)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionQueue)
+        self.checkCompressionQueue()
 
     def onCompressionError(self, mirrorInfo: MirrorInfo):
-        shutil.rmtree(mirrorInfo.path)
         self.compressionQueue.remove(mirrorInfo.uid)
         self.compressionQueueActive -= 1
-        # self.checkCompressionQueue()
         self.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
+        self.checkCompressionQueue()
 
     def onDecompressionQueue(self, mirrorInfo: MirrorInfo):
         if not mirrorInfo.isDecompress:
@@ -375,6 +253,7 @@ class MirrorListener:
             self.uploadQueue.append(mirrorInfo.uid)
             self.updateStatus(mirrorInfo.uid, MirrorStatus.uploadQueue)
             return
+        self.resetMirrorProgress(mirrorInfo.uid)
         self.checkDecompressionQueue()
 
     def checkDecompressionQueue(self):
@@ -394,18 +273,18 @@ class MirrorListener:
     def onDecompressionComplete(self, mirrorInfo: MirrorInfo):
         self.decompressionQueue.remove(mirrorInfo.uid)
         self.decompressionQueueActive -= 1
-        # self.checkDecompressionQueue()
         self.uploadQueue.append(mirrorInfo.uid)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.uploadQueue)
+        self.checkDecompressionQueue()
 
     def onDecompressionError(self, mirrorInfo: MirrorInfo):
-        shutil.rmtree(mirrorInfo.path)
         self.decompressionQueue.remove(mirrorInfo.uid)
         self.decompressionQueueActive -= 1
-        # self.checkDecompressionQueue()
         self.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
+        self.checkDecompressionQueue()
 
-    def onUploadQueue(self, _: MirrorInfo):
+    def onUploadQueue(self, mirrorInfo: MirrorInfo):
+        self.resetMirrorProgress(mirrorInfo.uid)
         self.checkUploadQueue()
 
     def checkUploadQueue(self):
@@ -440,11 +319,118 @@ class MirrorListener:
                             parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
 
     def onUploadError(self, mirrorInfo: MirrorInfo):
-        shutil.rmtree(mirrorInfo.path)
         self.uploadQueue.remove(mirrorInfo.uid)
         self.uploadQueueActive -= 1
-        # self.checkUploadQueue()
         self.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
+        self.checkUploadQueue()
+
+    def resetMirrorProgress(self, uid: str):
+        self.mirrorHelper.mirrorInfoDict[uid].eta = 0
+        self.mirrorHelper.mirrorInfoDict[uid].progress = 0
+
+
+class MirrorHelper:
+    def __init__(self):
+        self.mirrorInfoDict: typing.Dict[str, MirrorInfo] = {}
+        self.mirrorListener: MirrorListener = MirrorListener(self)
+        self.ariaHelper = AriaHelper(self)
+        self.googleDriveHelper = GoogleDriveHelper(self)
+        self.megaHelper = MegaHelper(self)
+        self.telegramHelper = TelegramHelper(self)
+        self.youTubeHelper = YouTubeHelper(self)
+        self.compressionHelper = CompressionHelper(self)
+        self.decompressionHelper = DecompressionHelper(self)
+        self.statusHelper = StatusHelper(self)
+        self.regexMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
+        self.regexUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
+        self.regexGoogleDriveUrl = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
+
+    def addMirror(self, msg: telegram.Message):
+        isDl: bool
+        mirrorInfo: MirrorInfo
+        isDl, mirrorInfo = self.genMirrorInfo(msg)
+        logger.info(f'addMirror - [{isDl}] [{mirrorInfo.url}]')
+        if isDl:
+            logger.debug(vars(mirrorInfo))
+            self.mirrorInfoDict[mirrorInfo.uid] = mirrorInfo
+            self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
+            self.statusHelper.addStatus(msg)
+
+    def cancelMirror(self, msg: telegram.Message):
+        if self.mirrorInfoDict == {}:
+            logger.info('No Active Downloads !')
+            return
+        uids: typing.List[str] = []
+        try:
+            msgTxt = msg.text.split(' ')[1].strip()
+            if msgTxt == 'all':
+                uids = list(self.mirrorInfoDict.keys())
+            if msgTxt in self.mirrorInfoDict.keys():
+                uids.append(msgTxt)
+        except IndexError:
+            replyTo = msg.reply_to_message
+            if replyTo:
+                msgId = replyTo.message_id
+                for mirrorInfo in self.mirrorInfoDict.values():
+                    if msgId == mirrorInfo.msgId:
+                        uids.append(mirrorInfo.uid)
+                        break
+        if len(uids) == 0:
+            logger.info('No Valid Mirror Found !')
+            return
+        for uid in uids:
+            self.mirrorListener.updateStatus(uid, MirrorStatus.cancelMirror)
+
+    def getStatusMsgTxt(self):
+        statusMsgTxt: str = ''
+        for uid in self.mirrorInfoDict.keys():
+            mirrorInfo = self.mirrorInfoDict[uid]
+            statusMsgTxt += f'{mirrorInfo.uid} {mirrorInfo.status}\n'
+        return statusMsgTxt
+
+    def genMirrorInfo(self, msg: telegram.Message):
+        mirrorInfo: MirrorInfo = MirrorInfo(msg.message_id, msg.chat.id)
+        mirrorInfo.isGoogleDriveUpload = True
+        mirrorInfo.googleDriveUploadFolderId = envVarDict['googleDriveUploadFolderId']
+        isDl: bool = True
+        try:
+            mirrorInfo.url = msg.text.split(' ')[1].strip()
+            mirrorInfo.tag = msg.from_user.username
+            mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.url)
+            if mirrorInfo.googleDriveDownloadSourceId != '':
+                mirrorInfo.isGoogleDriveDownload = True
+            elif re.findall(self.regexMagnet, mirrorInfo.url):
+                mirrorInfo.isMagnet = True
+                mirrorInfo.isAriaDownload = True
+            elif re.findall(self.regexUrl, mirrorInfo.url):
+                mirrorInfo.isUrl = True
+                mirrorInfo.isAriaDownload = True
+            else:
+                isDl = False
+                logger.info('No Valid Link Provided !')
+        except IndexError:
+            replyTo = msg.reply_to_message
+            if replyTo:
+                mirrorInfo.tag = replyTo.from_user.username
+                for media in [replyTo.document, replyTo.audio, replyTo.video]:
+                    if media:
+                        if media.mime_type == 'application/x-bittorrent':
+                            mirrorInfo.isAriaDownload = True
+                            mirrorInfo.url = media.get_file().file_path
+                        else:
+                            mirrorInfo.isTelegramDownload = True
+                        break
+            else:
+                isDl = False
+                logger.info('No Link Provided !')
+        return isDl, mirrorInfo
+
+    # TODO: check this method
+    def getIdFromUrl(self, url: str):
+        if 'folders' in url or 'file' in url:
+            result = re.search(self.regexGoogleDriveUrl, url)
+            return result.group(5)
+        return ''
 
 
 class AriaHelper:
@@ -507,7 +493,6 @@ class GoogleDriveHelper:
         self.chunkSize: int = 32 * 1024 * 1024
 
     def addDownload(self, mirrorInfo: MirrorInfo):
-        os.mkdir(mirrorInfo.path)
         sourceId = mirrorInfo.googleDriveDownloadSourceId
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
@@ -811,8 +796,138 @@ class StatusHelper:
         self.lastStatusMsgTxt = ''
 
 
+class WebhookServer:
+    def __init__(self, mirrorHelper: 'MirrorHelper'):
+        self.mirrorHelper = mirrorHelper
+        self.listenAddress: str = 'localhost'
+        self.listenPort: int = 8448
+        self.webhookPath: str = 'mirrorListener'
+        self.webhookUrl: str = f'http://{self.listenAddress}:{self.listenPort}/{self.webhookPath}'
+        self.handlers = [(rf"/{self.webhookPath}/?", WebhookHandler, {'mirrorHelper': self.mirrorHelper})]
+        self.webhookApp = WebhookApp(self.handlers)
+        self.httpServer = tornado.httpserver.HTTPServer(self.webhookApp)
+        self.loop: typing.Optional[tornado.ioloop.IOLoop] = None
+        self.isRunning = False
+        self.serverLock = threading.Lock()
+        self.shutdownLock = threading.Lock()
+
+    def serveForever(self, forceEventLoop: bool = False, ready: threading.Event = None) -> None:
+        with self.serverLock:
+            self.isRunning = True
+            logger.debug('Webhook Server started.')
+            self.ensureEventLoop(forceEventLoop=forceEventLoop)
+            self.loop = tornado.ioloop.IOLoop.current()
+            self.httpServer.listen(self.listenPort, address=self.listenAddress)
+            if ready is not None:
+                ready.set()
+            self.loop.start()
+            logger.debug('Webhook Server stopped.')
+            self.isRunning = False
+
+    def shutdown(self) -> None:
+        with self.shutdownLock:
+            if not self.isRunning:
+                logger.warning('Webhook Server already stopped.')
+                return
+            self.loop.add_callback(self.loop.stop)
+
+    @staticmethod
+    def ensureEventLoop(forceEventLoop: bool = False) -> None:
+        try:
+            loop = asyncio.get_event_loop()
+            if (not forceEventLoop and os.name == 'nt' and sys.version_info >= (3, 8)
+                    and isinstance(loop, asyncio.ProactorEventLoop)):
+                raise TypeError('`ProactorEventLoop` is incompatible with Tornado.'
+                                'Please switch to `SelectorEventLoop`.')
+        except RuntimeError:
+            if (os.name == 'nt' and sys.version_info >= (3, 8) and hasattr(asyncio, 'WindowsProactorEventLoopPolicy')
+                    and (isinstance(asyncio.get_event_loop_policy(), asyncio.WindowsProactorEventLoopPolicy))):
+                logger.debug('Applying Tornado asyncio event loop fix for Python 3.8+ on Windows')
+                loop = asyncio.SelectorEventLoop()
+            else:
+                loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+
+class WebhookApp(tornado.web.Application):
+    def __init__(self, handlers: list):
+        tornado.web.Application.__init__(self, handlers)
+
+    def log_request(self, handler: tornado.web.RequestHandler) -> None:
+        pass
+
+
+class WebhookHandler(tornado.web.RequestHandler):
+    def __init__(self, application: tornado.web.Application, request: tornado.httputil.HTTPServerRequest, **kwargs):
+        super().__init__(application, request, **kwargs)
+
+    def initialize(self, mirrorHelper: 'MirrorHelper'):
+        self.mirrorHelper = mirrorHelper
+
+    def set_default_headers(self) -> None:
+        self.set_header("Content-Type", 'application/json; charset="utf-8"')
+
+    def post(self) -> None:
+        logger.debug('Webhook Triggered')
+        self._validate_post()
+        json_string = self.request.body.decode()
+        data = json.loads(json_string)
+        self.set_status(200)
+        logger.debug(f'Webhook Received Data: {data}')
+        initThread(target=self.mirrorHelper.mirrorListener.updateStatusCallback,
+                   name=f"{data['mirrorUid']}-{data['mirrorStatus']}", uid=data['mirrorUid'])
+
+    def _validate_post(self) -> None:
+        ct_header = self.request.headers.get("Content-Type", None)
+        if ct_header != 'application/json':
+            raise tornado.web.HTTPError(403)
+
+    def write_error(self, status_code: int, **kwargs: typing.Any) -> None:
+        super().write_error(status_code, **kwargs)
+        logger.debug("%s - - %s", self.request.remote_ip, "Exception in WebhookHandler", exc_info=kwargs['exc_info'])
+
+
 class DirectDownloadLinkException(Exception):
     pass
+
+
+class NotSupportedArchiveFormat(Exception):
+    pass
+
+
+class BotCommands:
+    Start = telegram.BotCommand(command='start',
+                                description='StartCommand')
+    Help = telegram.BotCommand(command='help',
+                               description='HelpCommand')
+    Stats = telegram.BotCommand(command='stats',
+                                description='StatsCommand')
+    Ping = telegram.BotCommand(command='ping',
+                               description='PingCommand')
+    Restart = telegram.BotCommand(command='restart',
+                                  description='RestartCommand')
+    Logs = telegram.BotCommand(command='logs',
+                               description='LogsCommand')
+    Mirror = telegram.BotCommand(command='mirror',
+                                 description='MirrorCommand')
+    Status = telegram.BotCommand(command='status',
+                                 description='StatusCommand')
+    Cancel = telegram.BotCommand(command='cancel',
+                                 description='CancelCommand')
+    List = telegram.BotCommand(command='list',
+                               description='ListCommand')
+    Delete = telegram.BotCommand(command='delete',
+                                 description='DeleteCommand')
+    Authorize = telegram.BotCommand(command='authorize',
+                                    description='AuthorizeCommand')
+    Unauthorize = telegram.BotCommand(command='unauthorize',
+                                      description='UnauthorizeCommand')
+    Sync = telegram.BotCommand(command='sync',
+                               description='SyncCommand')
+    Top = telegram.BotCommand(command='top',
+                              description='TopCommand')
+    Config = telegram.BotCommand(command='Config',
+                                 description='ConfigCommand')
 
 
 class InlineKeyboardMaker:
@@ -841,114 +956,6 @@ class InterceptHandler(logging.Handler):
             frame = frame.f_back
             depth += 1
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
-
-
-class MirrorHelper:
-    def __init__(self):
-        self.mirrorInfoDict: typing.Dict[str, MirrorInfo] = {}
-        self.mirrorListener: MirrorListener = MirrorListener(self)
-        self.ariaHelper = AriaHelper(self)
-        self.googleDriveHelper = GoogleDriveHelper(self)
-        self.megaHelper = MegaHelper(self)
-        self.telegramHelper = TelegramHelper(self)
-        self.youTubeHelper = YouTubeHelper(self)
-        self.compressionHelper = CompressionHelper(self)
-        self.decompressionHelper = DecompressionHelper(self)
-        self.statusHelper = StatusHelper(self)
-        self.regexMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
-        self.regexUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
-        self.regexGoogleDriveUrl = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
-
-    def addMirror(self, msg: telegram.Message):
-        isDl: bool
-        mirrorInfo: MirrorInfo
-        isDl, mirrorInfo = self.genMirrorInfo(msg)
-        logger.info(f'addMirror - [{isDl}] [{mirrorInfo.url}]')
-        if isDl:
-            logger.debug(vars(mirrorInfo))
-            self.mirrorInfoDict[mirrorInfo.uid] = mirrorInfo
-            self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
-            self.statusHelper.addStatus(msg)
-
-    def cancelMirror(self, msg: telegram.Message):
-        if self.mirrorInfoDict == {}:
-            logger.info('No Active Downloads !')
-            return
-        uids: typing.List[str] = []
-        try:
-            msgTxt = msg.text.split(' ')[1].strip()
-            if msgTxt == 'all':
-                uids = list(self.mirrorInfoDict.keys())
-            if msgTxt in self.mirrorInfoDict.keys():
-                uids.append(msgTxt)
-        except IndexError:
-            replyTo = msg.reply_to_message
-            if replyTo:
-                msgId = replyTo.message_id
-                for mirrorInfo in self.mirrorInfoDict.values():
-                    if msgId == mirrorInfo.msgId:
-                        uids.append(mirrorInfo.uid)
-                        break
-        if len(uids) == 0:
-            logger.info('No Valid Mirror Found !')
-            return
-        for uid in uids:
-            self.mirrorListener.updateStatus(uid, MirrorStatus.cancelMirror)
-
-    def getStatusMsgTxt(self):
-        statusMsgTxt: str = ''
-        for uid in self.mirrorInfoDict.keys():
-            mirrorInfo = self.mirrorInfoDict[uid]
-            statusMsgTxt += f'{mirrorInfo.uid} {mirrorInfo.status}\n'
-        return statusMsgTxt
-
-    def genMirrorInfo(self, msg: telegram.Message):
-        mirrorInfo: MirrorInfo = MirrorInfo(msg.message_id, msg.chat.id)
-        mirrorInfo.isGoogleDriveUpload = True
-        mirrorInfo.googleDriveUploadFolderId = envVarDict['googleDriveUploadFolderId']
-        isDl: bool = True
-        try:
-            mirrorInfo.url = msg.text.split(' ')[1].strip()
-            mirrorInfo.tag = msg.from_user.username
-            mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.url)
-            if mirrorInfo.googleDriveDownloadSourceId != '':
-                mirrorInfo.isGoogleDriveDownload = True
-            elif re.findall(self.regexMagnet, mirrorInfo.url):
-                mirrorInfo.isMagnet = True
-                mirrorInfo.isAriaDownload = True
-            elif re.findall(self.regexUrl, mirrorInfo.url):
-                mirrorInfo.isUrl = True
-                mirrorInfo.isAriaDownload = True
-            else:
-                isDl = False
-                logger.info('No Valid Link Provided !')
-        except IndexError:
-            replyTo = msg.reply_to_message
-            if replyTo:
-                mirrorInfo.tag = replyTo.from_user.username
-                for media in [replyTo.document, replyTo.audio, replyTo.video]:
-                    if media:
-                        if media.mime_type == 'application/x-bittorrent':
-                            mirrorInfo.isAriaDownload = True
-                            mirrorInfo.url = media.get_file().file_path
-                        else:
-                            mirrorInfo.isTelegramDownload = True
-                        break
-            else:
-                isDl = False
-                logger.info('No Link Provided !')
-        return isDl, mirrorInfo
-
-    # TODO: check this method
-    def getIdFromUrl(self, url: str):
-        if 'folders' in url or 'file' in url:
-            result = re.search(self.regexGoogleDriveUrl, url)
-            return result.group(5)
-        return ''
-
-
-class NotSupportedArchiveFormat(Exception):
-    pass
 
 
 def initThread(target: typing.Callable, name: str, *args: object, **kwargs: object) -> None:
