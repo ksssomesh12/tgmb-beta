@@ -74,6 +74,7 @@ class MirrorInfo:
 class MirrorStatus:
     addMirror = 'addMirror'
     cancelMirror = 'cancelMirror'
+    completeMirror = 'completeMirror'
     downloadQueue = 'downloadQueue'
     downloadStart = 'downloadStart'
     downloadProgress = 'downloadProgress'
@@ -115,6 +116,7 @@ class MirrorListener:
         self.statusCallBackDict: typing.Dict[str, typing.Callable] \
             = {MirrorStatus.addMirror: self.onAddMirror,
                MirrorStatus.cancelMirror: self.onCancelMirror,
+               MirrorStatus.completeMirror: self.onCompleteMirror,
                MirrorStatus.downloadQueue: self.onDownloadQueue,
                MirrorStatus.downloadStart: self.onDownloadStart,
                MirrorStatus.downloadProgress: self.onDownloadProgress,
@@ -165,6 +167,13 @@ class MirrorListener:
     def onCancelMirror(self, mirrorInfo: MirrorInfo):
         shutil.rmtree(mirrorInfo.path)
         self.mirrorHelper.mirrorInfoDict.pop(mirrorInfo.uid)
+
+    def onCompleteMirror(self, mirrorInfo: MirrorInfo):
+        shutil.rmtree(mirrorInfo.path)
+        self.mirrorHelper.mirrorInfoDict.pop(mirrorInfo.uid)
+        if mirrorInfo.isGoogleDriveUpload or mirrorInfo.isMegaUpload:
+            bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
+                            parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
 
     def onDownloadQueue(self, mirrorInfo: MirrorInfo):
         self.resetMirrorProgress(mirrorInfo.uid)
@@ -309,14 +318,10 @@ class MirrorListener:
         pass
 
     def onUploadComplete(self, mirrorInfo: MirrorInfo):
-        shutil.rmtree(mirrorInfo.path)
         self.uploadQueue.remove(mirrorInfo.uid)
         self.uploadQueueActive -= 1
-        # self.checkUploadQueue()
-        self.mirrorHelper.mirrorInfoDict.pop(mirrorInfo.uid)
-        if mirrorInfo.isGoogleDriveUpload or mirrorInfo.isMegaUpload:
-            bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
-                            parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
+        self.updateStatus(mirrorInfo.uid, MirrorStatus.completeMirror)
+        self.checkUploadQueue()
 
     def onUploadError(self, mirrorInfo: MirrorInfo):
         self.uploadQueue.remove(mirrorInfo.uid)
