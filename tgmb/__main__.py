@@ -5,6 +5,7 @@ from . import botCmdHandler, subProc
 def main():
     subProc.init()
     checkBotApiStart()
+    # TODO: add checkAriaDaemonStart()
     mirrorHelper.ariaHelper.startListener()
     botCmdHandler.addHandlers(dispatcher)
     updater.start_webhook(listen="127.0.0.1", port=8443, url_path=envVarDict['botToken'],

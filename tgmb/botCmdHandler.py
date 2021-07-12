@@ -31,11 +31,13 @@ def help(update: telegram.Update, _: telegram.ext.CallbackContext):
                     reply_to_message_id=update.message.message_id)
 
 
+# TODO: update stats msg
 def stats(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text=getStatsMsg(), parse_mode='HTML', chat_id=update.message.chat_id,
                     reply_to_message_id=update.message.message_id)
 
 
+# TODO: CommandHandler for /ping
 def ping(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text='PingCommand Test Message', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
@@ -47,6 +49,7 @@ def restart(update: telegram.Update, _: telegram.ext.CallbackContext):
     restartMsg = bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
                                  reply_to_message_id=update.message.message_id)
     open(restartDumpFile, 'wt').write(f'{restartMsg.message_id} {restartMsg.chat_id}\n')
+    # TODO: may be not restart all subprocesses on every restart?
     subProc.term()
     time.sleep(5)
     os.execl(sys.executable, sys.executable, '-m', 'tgmb')
@@ -72,11 +75,13 @@ def cancel(update: telegram.Update, _: telegram.ext.CallbackContext):
     mirrorHelper.cancelMirror(update.message)
 
 
+# TODO: CommandHandler for /list
 def list(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text='ListCommand Test Message', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
+# TODO: CommandHandler for /delete
 def delete(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text='DeleteCommand Test Message', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
@@ -125,6 +130,7 @@ def sync(update: telegram.Update, _: telegram.ext.CallbackContext):
                         reply_to_message_id=update.message.message_id)
 
 
+# TODO: format this properly later on or else remove from release
 def top(update: telegram.Update, _: telegram.ext.CallbackContext):
     topMsg = ''
     tgmbProcess = psutil.Process(os.getpid())

@@ -1,3 +1,14 @@
+# TODO: add sufficient documentation to the functions and classes in this module
+# TODO: Code for Download from Telegram
+# TODO: Code for Download from YouTube
+# TODO: Code for Upload to Telegram
+# TODO: Code for CompressionHelper and DecompressionHelper
+# TODO: Helper functions - bot_utils.py, fs_utils.py, message_utils.py
+# TODO: Code for user filters
+# TODO: Add and Handle Exceptions
+# TODO: Code for direct link generation
+# TODO: may be add glances and run it on http port 80
+# TODO: maybe customise garbage collection
 import aria2p
 import asyncio
 import googleapiclient.discovery
@@ -274,6 +285,7 @@ class MirrorListener:
         self.downloadQueue.append(mirrorInfo.uid)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.downloadQueue)
 
+    # TODO: improve method and maybe not use onCancelMirror callback in operationErrors and improve onOperationErrors
     def onCancelMirror(self, mirrorInfo: MirrorInfo):
         self.mirrorHelper.mirrorInfoDict.pop(mirrorInfo.uid)
 
@@ -927,6 +939,7 @@ class MirrorHelper:
                 logger.info('No Link Provided !')
         return isDl, mirrorInfo
 
+    # TODO: check this method
     def getIdFromUrl(self, url: str):
         if 'folders' in url or 'file' in url:
             result = re.search(self.regexGoogleDriveUrl, url)
@@ -1046,6 +1059,7 @@ def fileBak(fileName: str):
         logger.info(f"Copied: '{fileName}' -> '{fileBakName}'")
     except FileNotFoundError:
         logger.error(FileNotFoundError)
+        # TODO: remove exit maybe?
         exit(1)
 
 
@@ -1082,6 +1096,7 @@ def getFileHash(filePath: str):
     return hashSum.hexdigest()
 
 
+# TODO: typecheck numBytes
 def getReadableFileSize(numBytes: float):
     global fileSizeUnits
     i = 0

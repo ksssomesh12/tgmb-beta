@@ -162,6 +162,7 @@ tempKeyValue: str
 newValMsg: telegram.Message
 
 handler = telegram.ext.ConversationHandler(
+    # TODO: filter - add owner_filter
     entry_points=[telegram.ext.CommandHandler(BotCommands.Config.command, stageZero)],
     states={
         # ZEROTH
@@ -180,6 +181,7 @@ handler = telegram.ext.ConversationHandler(
         SIXTH: [telegram.ext.CallbackQueryHandler(stageSix)]
         # Exit or Start Over
     },
+    # TODO: filter - add owner_filter
     fallbacks=[telegram.ext.CommandHandler(BotCommands.Config.command, stageZero)],
     conversation_timeout=120,
     run_async=True
