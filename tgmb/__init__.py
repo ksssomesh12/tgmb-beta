@@ -1241,9 +1241,8 @@ dynamicEnvFile = 'dynamic.env'
 fileidEnvFile = 'fileid.env'
 configFileList: [str] = [configEnvFile, configEnvBakFile, credsJsonFile, tokenJsonFile]
 reqEnvVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderId']
-optEnvVarList: [str] = ['authorizedChats', 'enableTelegramUploads', 'ariaRpcSecret', 'dlRootDir',
-                        'statusUpdateInterval']
-optEnvVarValList: [str] = ['', 'false', 'tgmb-canary', 'dl', '5']
+optEnvVarList: [str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir', 'statusUpdateInterval']
+optEnvVarValList: [str] = ['', 'tgmb-beta', 'dl', '5']
 envVarDict: {str: str} = {'CWD': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
