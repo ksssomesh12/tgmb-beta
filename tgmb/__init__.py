@@ -629,6 +629,14 @@ class GoogleDriveHelper:
         folderOp = service.files().create(supportsTeamDrives=True, body=folderMetadata).execute()
         return folderOp['id']
 
+    def deleteByUrl(self, url: str):
+        contentId = self.mirrorHelper.getIdFromUrl(url)
+        if contentId != '':
+            service = self.buildService()
+            service.files().delete(fileId=contentId, supportsAllDrives=True).execute()
+            return f'Deleted: [{url}]'
+        return 'Not a Valid Google Drive Link !'
+
     def getUpData(self, filePath: str, isResumable: bool):
         fileName = filePath.split('/')[-1]
         service = self.buildService()

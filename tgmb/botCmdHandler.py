@@ -81,10 +81,9 @@ def list(update: telegram.Update, _: telegram.ext.CallbackContext):
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-# TODO: CommandHandler for /delete
 def delete(update: telegram.Update, _: telegram.ext.CallbackContext):
-    bot.sendMessage(text='DeleteCommand Test Message', parse_mode='HTML',
-                    chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+    bot.sendMessage(text=mirrorHelper.googleDriveHelper.deleteByUrl(update.message.text.split(' ')[1].strip()),
+                    parse_mode='HTML', chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
 def authorize(update: telegram.Update, _: telegram.ext.CallbackContext):
