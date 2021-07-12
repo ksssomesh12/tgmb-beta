@@ -562,7 +562,7 @@ class GoogleDriveHelper:
         upStatus: googleapiclient.http.MediaUploadProgress
         service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=True)
         fileMetadata['parents'] = [parentFolderId]
-        fileOp = service.files().create(supportsTeamDrives=True, body=fileMetadata, media_body=mediaBody)
+        fileOp = service.files().create(supportsAllDrives=True, body=fileMetadata, media_body=mediaBody)
         upResponse = None
         while upResponse is None:
             upStatus, upResponse = fileOp.next_chunk()
@@ -604,7 +604,8 @@ class GoogleDriveHelper:
         downStatus: googleapiclient.http.MediaDownloadProgress
         service = self.buildService()
         fileOp = googleapiclient.http.MediaIoBaseDownload(fd=open(filePath, 'wb'), chunksize=self.chunkSize,
-                                                          request=service.files().get_media(fileId=sourceFileId))
+                                                          request=service.files().get_media(fileId=sourceFileId,
+                                                                                            supportsAllDrives=True))
         downResponse = None
         while downResponse is None:
             downStatus, downResponse = fileOp.next_chunk()
@@ -626,7 +627,7 @@ class GoogleDriveHelper:
     def createFolder(self, folderName: str, parentFolderId: str):
         folderMetadata = {'name': folderName, 'parents': [parentFolderId], 'mimeType': self.googleDriveFolderMimeType}
         service = self.buildService()
-        folderOp = service.files().create(supportsTeamDrives=True, body=folderMetadata).execute()
+        folderOp = service.files().create(supportsAllDrives=True, body=folderMetadata).execute()
         return folderOp['id']
 
     def deleteByUrl(self, url: str):
@@ -660,7 +661,7 @@ class GoogleDriveHelper:
         pageToken = None
         folderContents = []
         while True:
-            result = service.files().list(supportsTeamDrives=True, includeTeamDriveItems=True, spaces='drive',
+            result = service.files().list(supportsAllDrives=True, includeTeamDriveItems=True, spaces='drive',
                                           fields='nextPageToken, files(name, id, mimeType, size)',
                                           q=query, pageSize=200, pageToken=pageToken).execute()
             for content in result.get('files', []):
