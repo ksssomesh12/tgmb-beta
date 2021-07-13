@@ -1127,7 +1127,7 @@ def getFileHash(filePath: str):
 
 
 # TODO: typecheck numBytes
-def getReadableFileSize(numBytes: float):
+def getReadableSize(numBytes: float):
     global fileSizeUnits
     i = 0
     if numBytes is not None:
@@ -1164,12 +1164,14 @@ def getStatsMsg():
     memoryUsage = psutil.virtual_memory().percent
     diskUsageTotal, diskUsageUsed, diskUsageFree, diskUsage = psutil.disk_usage('.')
     statsMsg = f'botUpTime: {botUpTime}\n' \
-               f'cpuUsage: {cpuUsage}\n' \
-               f'memoryUsage: {memoryUsage}\n' \
-               f'diskUsage: {diskUsage}\n' \
-               f'Total: {getReadableFileSize(diskUsageTotal)} |' \
-               f' Used: {getReadableFileSize(diskUsageUsed)} |' \
-               f' Free: {getReadableFileSize(diskUsageFree)}\n'
+               f'cpuUsage: {cpuUsage}%\n' \
+               f'memoryUsage: {memoryUsage}%\n' \
+               f'diskUsage: {diskUsage}%\n' \
+               f'Total: {getReadableSize(diskUsageTotal)} | ' \
+               f'Used: {getReadableSize(diskUsageUsed)} | ' \
+               f'Free: {getReadableSize(diskUsageFree)}\n' \
+               f'dataDown: {getReadableSize(psutil.net_io_counters().bytes_recv)} | ' \
+               f'dataUp: {getReadableSize(psutil.net_io_counters().bytes_sent)}\n'
     return statsMsg
 
 
