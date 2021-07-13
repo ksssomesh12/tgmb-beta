@@ -71,7 +71,7 @@ def authorizeGoogleDriveApi():
 def ariaDl(fileName: str):
     global envVarDict
     isDownloaded = False
-    fileUrl = f"https://docs.google.com/uc?export=download&id={envVarDict[fileName.upper().replace('.', '_')]}"
+    fileUrl = 'https://docs.google.com/uc?export=download&id={}'.format(envVarDict[getFileNameEnv(fileName)])
     if os.path.exists(fileName):
         os.remove(fileName)
     subprocess.run(['aria2c', fileUrl, '--quiet=true', '--out=' + fileName])
@@ -94,7 +94,7 @@ def fileUpload(fileName: str):
     service = googleapiclient.discovery.build(serviceName='drive', version='v3',
                                               credentials=creds, cache_discovery=False)
     fileMimetype = magic.Magic(mime=True).from_file(fileName)
-    fileMetadata = {'name': fileName, 'mimeType': fileMimetype, 'parents': [envVarDict['CONFIG_FOLDER_ID']]}
+    fileMetadata = {'name': fileName, 'mimeType': fileMimetype, 'parents': [envVarDict['configFolderId']]}
     mediaBody = googleapiclient.http.MediaFileUpload(filename=fileName, mimetype=fileMimetype, resumable=False)
     fileOp = service.files().create(body=fileMetadata, media_body=mediaBody).execute()
     print(f"Uploaded: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]")
@@ -103,7 +103,7 @@ def fileUpload(fileName: str):
 
 def filePatch(fileName: str):
     global creds, envVarDict
-    fileId = envVarDict[fileName.upper().replace('.', '_')]
+    fileId = envVarDict[getFileNameEnv(fileName)]
     service = googleapiclient.discovery.build(serviceName='drive', version='v3',
                                               credentials=creds, cache_discovery=False)
     fileMimetype = magic.Magic(mime=True).from_file(fileName)
@@ -112,6 +112,15 @@ def filePatch(fileName: str):
     fileOp = service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
     print(f"Synced: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]")
     return fileOp['id']
+
+
+def getFileNameEnv(fileName: str):
+    splitList = fileName.split('.')
+    fileIdEnvName = splitList[0]
+    if len(splitList) > 1:
+        for i in range(1, len(splitList)):
+            fileIdEnvName += splitList[i].capitalize()
+    return fileIdEnvName
 
 
 def syncHandler():
@@ -124,19 +133,19 @@ def syncHandler():
     fileReformat(configEnvFile)
     fileidEnvFileDat = ''
     for fileName in configSyncList[0:4]:
-        varName = fileName.upper().replace(".", "_")
+        varName = getFileNameEnv(fileName)
         if isUpdateConfig:
             fileidEnvFileDat += f'{varName} = "{filePatch(fileName)}"\n'
         else:
             fileidEnvFileDat += f'{varName} = "{fileUpload(fileName)}"\n'
-        fileidEnvFileDat += f'{varName}_HASH = "{getFileHash(fileName)}"\n'
+        fileidEnvFileDat += f'{varName}Hash = "{getFileHash(fileName)}"\n'
     open(fileidEnvFile, 'w').write(fileidEnvFileDat)
-    dynamicEnvFileDat = f'CONFIG_FOLDER_ID = "{envVarDict["CONFIG_FOLDER_ID"]}"\n'
-    dynamicEnvFileDat += f'DL_WAIT_TIME = "{input("Enter DL_WAIT_TIME (default is 5): ")}"\n'
+    dynamicEnvFileDat = f'configFolderId = "{envVarDict["configFolderId"]}"\n'
+    dynamicEnvFileDat += f'dlWaitTime = "{input("Enter dlWaitTime (default is 5): ")}"\n'
     if isUpdateConfig:
-        dynamicEnvFileDat += f'{fileidEnvFile.upper().replace(".", "_")} = "{filePatch(fileidEnvFile)}"\n'
+        dynamicEnvFileDat += f'{getFileNameEnv(fileidEnvFile)} = "{filePatch(fileidEnvFile)}"\n'
     else:
-        dynamicEnvFileDat += f'{fileidEnvFile.upper().replace(".", "_")} = "{fileUpload(fileidEnvFile)}"\n'
+        dynamicEnvFileDat += f'{getFileNameEnv(fileidEnvFile)} = "{fileUpload(fileidEnvFile)}"\n'
     open(dynamicEnvFile, 'w').write(dynamicEnvFileDat)
     if isUpdateConfig:
         filePatch(dynamicEnvFile)
@@ -159,7 +168,7 @@ isUpdateConfig = False
 if input('Do You Want to Use Dynamic Config? (y/n): ').lower() == 'y':
     if input('Do You Want to Update Existing Config? (y/n): ').lower() == 'y':
         isUpdateConfig = True
-        envVarDict[dynamicEnvFile.upper().replace('.', '_')] = input(f"Enter FileId of '{dynamicEnvFile}': ")
+        envVarDict[getFileNameEnv(dynamicEnvFile)] = input(f"Enter FileId of '{dynamicEnvFile}': ")
         ariaDl(dynamicEnvFile)
         envVarDict = {**envVarDict, **loadDict(dynamicEnvFile)}
         ariaDl(fileidEnvFile)
@@ -169,7 +178,7 @@ if input('Do You Want to Use Dynamic Config? (y/n): ').lower() == 'y':
         if input('Make Necessary Changes to the Config Files in this Directory.\nContinue? (y/n): ').lower() != 'y':
             exit(1)
     else:
-        envVarDict['CONFIG_FOLDER_ID'] = input('Enter Google Drive Parent Folder ID: ')
+        envVarDict['configFolderId'] = input('Enter Google Drive Parent Folder ID: ')
     syncHandler()
     if input('Do You Want to Delete the Local Config Files? (y/n): ').lower() == 'y':
         for file in configSyncList:
@@ -181,19 +190,19 @@ exit(0)
 
 # sample - dynamic.env
 # --- BEGINS --- #
-# CONFIG_FOLDER_ID = ""
-# DL_WAIT_TIME = ""
-# FILEID_ENV = ""
+# configFolderId = ""
+# dlWaitTime = ""
+# fileidEnv = ""
 # --- ENDS --- #
 
 # sample - fileid.env
 # --- BEGINS --- #
-# CONFIG_ENV = ""
-# CONFIG_ENV_HASH = ""
-# CONFIG_ENV_BAK = ""
-# CONFIG_ENV_BAK_HASH = ""
-# CREDENTIALS_JSON = ""
-# CREDENTIALS_JSON_HASH = ""
-# TOKEN_JSON = ""
-# TOKEN_JSON_HASH = ""
+# configEnv = ""
+# configEnvHash = ""
+# configEnvBak = ""
+# configEnvBakHash = ""
+# credsJson = ""
+# credsJsonHash = ""
+# tokenJson = ""
+# tokenJsonHash = ""
 # --- ENDS --- #

@@ -674,7 +674,7 @@ class GoogleDriveHelper:
     def patchFile(self, filePath: str, fileId: str = ''):
         service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         if fileId == '':
-            fileId = envVarDict[fileName.upper().replace('.', '_')]
+            fileId = envVarDict[getFileNameEnv(fileName)]
         fileOp = service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
@@ -990,12 +990,12 @@ def threadWrapper(target: typing.Callable, *args: object, **kwargs: object) -> N
 
 def ariaDl(fileName: str):
     isDownloaded = False
-    fileUrl = f"https://docs.google.com/uc?export=download&id={envVarDict[fileName.upper().replace('.', '_')]}"
+    fileUrl = 'https://docs.google.com/uc?export=download&id={}'.format(envVarDict[getFileNameEnv(fileName)])
     if os.path.exists(fileName):
         os.remove(fileName)
     subprocess.run(['aria2c', fileUrl, '--quiet=true', '--out=' + fileName])
     timeLapsed = 0
-    while timeLapsed <= float(envVarDict['DL_WAIT_TIME']):
+    while timeLapsed <= float(envVarDict['dlWaitTime']):
         if os.path.exists(fileName):
             isDownloaded = True
             logger.debug(f"Downloaded '{fileName}'")
@@ -1059,7 +1059,7 @@ def configHandler():
         envVarDict = {**envVarDict, **loadDict(fileidEnvFile)}
         for file in configFileList:
             isDownload = True
-            fileHashInDict = envVarDict[file.upper().replace('.', '_') + '_HASH']
+            fileHashInDict = envVarDict[getFileNameEnv(file) + 'Hash']
             if os.path.exists(file) and fileHashInDict == getFileHash(file):
                 isDownload = False
             if isDownload:
@@ -1067,7 +1067,7 @@ def configHandler():
     else:
         envVarDict['dynamicConfig'] = 'false'
         logger.info('Using Static Config...')
-        envVarDict['DL_WAIT_TIME'] = '5'
+        envVarDict['dlWaitTime'] = '5'
     for file in configFileList:
         if not os.path.exists(file):
             logger.error(f"Config File Missing: '{file}' ! Exiting...")
@@ -1104,6 +1104,15 @@ def getChatUserId(update: telegram.Update):
         chatUserId = update.effective_chat.id
         chatUserName = update.effective_chat.first_name
     return chatUserId, chatUserName
+
+
+def getFileNameEnv(fileName: str):
+    splitList = fileName.split('.')
+    fileIdEnvName = splitList[0]
+    if len(splitList) > 1:
+        for i in range(1, len(splitList)):
+            fileIdEnvName += splitList[i].capitalize()
+    return fileIdEnvName
 
 
 def getFileHash(filePath: str):
@@ -1236,8 +1245,8 @@ def updateFileidEnv():
     global configFileList, envVarDict, fileidEnvFile
     fileidEnvDat = ''
     for file in configFileList:
-        fileNameEnv = file.upper().replace('.', '_')
-        fileHashEnv = fileNameEnv + '_HASH'
+        fileNameEnv = getFileNameEnv(file)
+        fileHashEnv = fileNameEnv + 'Hash'
         envVarDict[fileHashEnv] = getFileHash(os.path.join(envVarDict['CWD'], file))
         fileidEnvDat += f'{fileNameEnv} = "{envVarDict[fileNameEnv]}"\n'
         fileidEnvDat += f'{fileHashEnv} = "{envVarDict[fileHashEnv]}"\n'
