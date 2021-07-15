@@ -452,7 +452,7 @@ class AriaHelper:
             self.ariaGidDict[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.url], options={'dir': mirrorInfo.path}).gid
 
     def cancelDownload(self, uid: str):
-        self.getDownload(self.ariaGidDict[uid]).remove(force=True, files=True)
+        self.getDlObj(self.ariaGidDict[uid]).remove(force=True, files=True)
         self.ariaGidDict.pop(uid)
 
     def getUid(self, gid: str):
@@ -460,7 +460,7 @@ class AriaHelper:
             if gid == self.ariaGidDict[uid]:
                 return uid
 
-    def getDownload(self, gid: str):
+    def getDlObj(self, gid: str):
         return self.api.get_download(gid)
 
     def startListener(self):
@@ -472,19 +472,19 @@ class AriaHelper:
                                          on_download_error=self.onDownloadError)
 
     def onDownloadStart(self, _: aria2p.API, gid: str):
-        dlObj = self.getDownload(gid)
+        pass
 
     def onDownloadPause(self, _: aria2p.API, gid: str):
-        dlObj = self.getDownload(gid)
+        pass
 
     def onDownloadComplete(self, _: aria2p.API, gid: str):
         self.mirrorHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str):
-        dlObj = self.getDownload(gid)
+        pass
 
     def onDownloadError(self, _: aria2p.API, gid: str):
-        dlObj = self.getDownload(gid)
+        pass
 
 
 class GoogleDriveHelper:
