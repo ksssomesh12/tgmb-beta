@@ -1128,7 +1128,7 @@ def getFileHash(filePath: str):
 
 # TODO: typecheck numBytes
 def getReadableSize(numBytes: float):
-    global fileSizeUnits
+    global sizeUnits
     i = 0
     if numBytes is not None:
         while numBytes >= 1024:
@@ -1136,7 +1136,7 @@ def getReadableSize(numBytes: float):
             i += 1
     else:
         numBytes = 0
-    return f'{round(numBytes, 2)}{fileSizeUnits[i]}'
+    return f'{round(numBytes, 2)}{sizeUnits[i]}'
 
 
 def getReadableTime(seconds: float):
@@ -1281,7 +1281,7 @@ logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: 
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
 authorizedChatsList: [int] = []
-fileSizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
+sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
 warnings.filterwarnings("ignore")
 
