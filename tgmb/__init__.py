@@ -54,6 +54,8 @@ class MirrorInfo:
         self.tag: str = ''
         self.eta: float = 0
         self.progress: float = 0
+        self.totalSize: int = 0
+        self.totalSizeStr: str = '0B'
         self.googleDriveDownloadSourceId: str = ''
         self.uploadUrl: str = ''
         self.googleDriveUploadFolderId: str = ''
@@ -69,6 +71,10 @@ class MirrorInfo:
         self.isTelegramUpload: bool = False
         self.isCompress: bool = False
         self.isDecompress: bool = False
+
+    def initTotalSize(self, totalSize: int):
+        self.totalSize = totalSize
+        self.totalSizeStr = getReadableSize(totalSize)
 
 
 class MirrorStatus:
@@ -472,7 +478,7 @@ class AriaHelper:
                                          on_download_error=self.onDownloadError)
 
     def onDownloadStart(self, _: aria2p.API, gid: str):
-        pass
+        self.mirrorHelper.mirrorInfoDict[self.getUid(gid)].initTotalSize(self.getDlObj(gid).total_length)
 
     def onDownloadPause(self, _: aria2p.API, gid: str):
         pass
@@ -502,16 +508,18 @@ class GoogleDriveHelper:
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
-        if mirrorInfo.isGoogleDriveUpload:
-            if isFolder:
+        if isFolder:
+            self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].initTotalSize(self.getSizeFolder(sourceId))
+            if mirrorInfo.isGoogleDriveUpload:
                 folderId = self.cloneFolder(sourceFolderId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
                 self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
             else:
+                self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path)
+        else:
+            self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].initTotalSize(self.getSizeFile(sourceId))
+            if mirrorInfo.isGoogleDriveUpload:
                 fileId = self.cloneFile(sourceFileId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
                 self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
-        else:
-            if isFolder:
-                self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path)
             else:
                 self.downloadFile(sourceFileId=sourceId, dlPath=mirrorInfo.path)
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
@@ -671,6 +679,21 @@ class GoogleDriveHelper:
                 break
         return folderContents
 
+    def getSizeFile(self, fileId: str):
+        sizeFile = int(self.getMetadataById(fileId, 'size'))
+        return sizeFile
+
+    def getSizeFolder(self, folderId: str):
+        sizeFolder: int = 0
+        folderContents = self.getFolderContentsById(folderId)
+        if len(folderContents) != 0:
+            for content in folderContents:
+                if content.get('mimeType') == self.googleDriveFolderMimeType:
+                    sizeFolder += self.getSizeFolder(content.get('id'))
+                else:
+                    sizeFolder += self.getSizeFile(content.get('id'))
+        return sizeFolder
+
     def patchFile(self, filePath: str, fileId: str = ''):
         service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         if fileId == '':
@@ -790,7 +813,8 @@ class StatusHelper:
             if self.mirrorHelper.mirrorInfoDict != {}:
                 statusMsgTxt = ''
                 for uid in self.mirrorHelper.mirrorInfoDict.keys():
-                    statusMsgTxt += f'{uid} {self.mirrorHelper.mirrorInfoDict[uid].status}\n'
+                    mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfoDict[uid]
+                    statusMsgTxt += f'{uid} {mirrorInfo.status}\n{mirrorInfo.totalSizeStr}\n'
                 if statusMsgTxt != self.lastStatusMsgTxt:
                     bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
                                         message_id=self.lastStatusMsgId)
