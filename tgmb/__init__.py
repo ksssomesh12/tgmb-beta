@@ -978,34 +978,35 @@ def initThread(target: typing.Callable, name: str, *args: object, **kwargs: obje
 
 
 def threadWrapper(target: typing.Callable, *args: object, **kwargs: object) -> None:
+    global runningThreads
     threadName = threading.current_thread().name
-    logger.debug(f'Thread Started: {threadName}')
+    runningThreads.append(threading.current_thread())
+    logger.debug(f'Thread Started: {threadName} [runningThreads - {len(runningThreads)}]')
     try:
         target(*args, **kwargs)
     except Exception:
         logger.exception(f'Unhandled Exception in Thread: {threadName}')
         raise
-    logger.debug(f'Thread Ended: {threadName}')
+    runningThreads.remove(threading.current_thread())
+    logger.debug(f'Thread Ended: {threadName} [runningThreads - {len(runningThreads)}]')
 
 
 def ariaDl(fileName: str):
-    isDownloaded = False
+    logger.debug(f"Starting Download: '{fileName}'...")
     fileUrl = 'https://docs.google.com/uc?export=download&id={}'.format(envVarDict[getFileNameEnv(fileName)])
     if os.path.exists(fileName):
         os.remove(fileName)
     subprocess.run(['aria2c', fileUrl, '--quiet=true', '--out=' + fileName])
-    timeLapsed = 0
+    # intentional thread switching
+    time.sleep(0.1)
+    timeLapsed = 0.1
     while timeLapsed <= float(envVarDict['dlWaitTime']):
         if os.path.exists(fileName):
-            isDownloaded = True
             logger.debug(f"Downloaded '{fileName}'")
             break
         else:
             time.sleep(0.1)
             timeLapsed += 0.1
-    if not isDownloaded:
-        logger.error(f"Config File Missing: '{fileName}' ! Exiting...")
-        exit(1)
 
 
 def checkBotApiStart():
@@ -1050,7 +1051,7 @@ def checkRestart():
 
 
 def configHandler():
-    global configFileList, envVarDict
+    global configFileList, envVarDict, runningThreads
     if os.path.exists(dynamicEnvFile):
         envVarDict['dynamicConfig'] = 'true'
         logger.info('Using Dynamic Config...')
@@ -1058,12 +1059,11 @@ def configHandler():
         ariaDl(fileidEnvFile)
         envVarDict = {**envVarDict, **loadDict(fileidEnvFile)}
         for file in configFileList:
-            isDownload = True
             fileHashInDict = envVarDict[getFileNameEnv(file) + 'Hash']
-            if os.path.exists(file) and fileHashInDict == getFileHash(file):
-                isDownload = False
-            if isDownload:
-                ariaDl(file)
+            if not (os.path.exists(file) and fileHashInDict == getFileHash(file)):
+                initThread(target=ariaDl, name=f'{file}-ariaDl', fileName=file)
+        while runningThreads:
+            time.sleep(0.1)
     else:
         envVarDict['dynamicConfig'] = 'false'
         logger.info('Using Static Config...')
@@ -1071,6 +1071,7 @@ def configHandler():
     for file in configFileList:
         if not os.path.exists(file):
             logger.error(f"Config File Missing: '{file}' ! Exiting...")
+            exit(1)
 
 
 def fileBak(fileName: str):
@@ -1260,6 +1261,7 @@ def updateFileidEnv():
 # '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | '
 # '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
 
+runningThreads: typing.List[threading.Thread] = []
 botStartTime: float = time.time()
 bot: telegram.Bot
 dispatcher: telegram.ext.Dispatcher
