@@ -396,7 +396,7 @@ class MirrorHelper:
     def genMirrorInfo(self, msg: telegram.Message):
         mirrorInfo: MirrorInfo = MirrorInfo(msg.message_id, msg.chat.id)
         mirrorInfo.isGoogleDriveUpload = True
-        mirrorInfo.googleDriveUploadFolderId = envVarDict['googleDriveUploadFolderId']
+        mirrorInfo.googleDriveUploadFolderId = googleDriveUploadFolderIds[0]
         isDl: bool = True
         try:
             mirrorInfo.url = msg.text.split(' ')[1].strip()
@@ -1023,6 +1023,7 @@ def checkBotApiStart():
 
 def checkEnvVar():
     global authorizedChatsList, configEnvFile, envVarDict, optEnvVarList, optEnvVarValList, reqEnvVarList
+    global googleDriveUploadFolderIds, googleDriveUploadFolderDescriptions
     fileReformat(configEnvFile)
     envVarDict = {**envVarDict, **loadDict(configEnvFile)}
     for reqEnvVar in reqEnvVarList:
@@ -1037,6 +1038,11 @@ def checkEnvVar():
                 raise KeyError
         except KeyError:
             envVarDict[optEnvVarList[i]] = optEnvVarValList[i]
+    googleDriveUploadFolderIds = envVarDict['googleDriveUploadFolderIds'].split(' ')
+    googleDriveUploadFolderDescriptions = envVarDict['googleDriveUploadFolderDescriptions'].split(' ')
+    if len(googleDriveUploadFolderIds) != len(googleDriveUploadFolderDescriptions):
+        logger.error('googleDriveUploadFolder Config Error !')
+        exit(1)
     if envVarDict[optEnvVarList[0]] != '':
         for authorizedChat in envVarDict[optEnvVarList[0]].split(' '):
             authorizedChatsList.append(int(authorizedChat))
@@ -1274,7 +1280,8 @@ tokenJsonFile = 'token.json'
 dynamicEnvFile = 'dynamic.env'
 fileidEnvFile = 'fileid.env'
 configFileList: [str] = [configEnvFile, configEnvBakFile, credsJsonFile, tokenJsonFile]
-reqEnvVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderId']
+reqEnvVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderIds',
+                        'googleDriveUploadFolderDescriptions']
 optEnvVarList: [str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir', 'statusUpdateInterval']
 optEnvVarValList: [str] = ['', 'tgmb-beta', 'dl', '5']
 envVarDict: {str: str} = {'CWD': os.getcwd()}
@@ -1283,6 +1290,8 @@ logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: 
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
 authorizedChatsList: [int] = []
+googleDriveUploadFolderIds: [str] = []
+googleDriveUploadFolderDescriptions: [str] = []
 sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
 warnings.filterwarnings("ignore")
