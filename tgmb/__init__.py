@@ -350,16 +350,11 @@ class MirrorHelper:
         self.regexUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
         self.regexGoogleDriveUrl = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
 
-    def addMirror(self, msg: telegram.Message):
-        isDl: bool
-        mirrorInfo: MirrorInfo
-        isDl, mirrorInfo = self.genMirrorInfo(msg)
-        logger.info(f'addMirror - [{isDl}] [{mirrorInfo.url}]')
-        if isDl:
-            logger.debug(vars(mirrorInfo))
-            self.mirrorInfoDict[mirrorInfo.uid] = mirrorInfo
-            self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
-            self.statusHelper.addStatus(msg)
+    def addMirror(self, mirrorInfo: MirrorInfo):
+        logger.debug(vars(mirrorInfo))
+        self.mirrorInfoDict[mirrorInfo.uid] = mirrorInfo
+        self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
+        self.statusHelper.addStatus(mirrorInfo.chatId, mirrorInfo.msgId)
 
     def cancelMirror(self, msg: telegram.Message):
         if self.mirrorInfoDict == {}:
@@ -395,9 +390,7 @@ class MirrorHelper:
 
     def genMirrorInfo(self, msg: telegram.Message):
         mirrorInfo: MirrorInfo = MirrorInfo(msg.message_id, msg.chat.id)
-        mirrorInfo.isGoogleDriveUpload = True
-        mirrorInfo.googleDriveUploadFolderId = googleDriveUploadFolderIds[0]
-        isDl: bool = True
+        isValidDl: bool = True
         try:
             mirrorInfo.url = msg.text.split(' ')[1].strip()
             mirrorInfo.tag = msg.from_user.username
@@ -410,9 +403,9 @@ class MirrorHelper:
             elif re.findall(self.regexUrl, mirrorInfo.url):
                 mirrorInfo.isUrl = True
                 mirrorInfo.isAriaDownload = True
+            # TODO: regex checks for download methods - Mega, YouTube
             else:
-                isDl = False
-                logger.info('No Valid Link Provided !')
+                isValidDl = False
         except IndexError:
             replyTo = msg.reply_to_message
             if replyTo:
@@ -426,9 +419,10 @@ class MirrorHelper:
                             mirrorInfo.isTelegramDownload = True
                         break
             else:
-                isDl = False
-                logger.info('No Link Provided !')
-        return isDl, mirrorInfo
+                isValidDl = False
+        if not isValidDl:
+            logger.info('No Valid Link Provided !')
+        return isValidDl, mirrorInfo
 
     # TODO: check this method
     def getIdFromUrl(self, url: str):
@@ -759,7 +753,7 @@ class StatusHelper:
         self.lastStatusMsgId: int = 0
         self.lastStatusMsgTxt: str = ''
 
-    def addStatus(self, msg: telegram.Message):
+    def addStatus(self, chatId: int, msgId: int):
         if self.mirrorHelper.mirrorInfoDict != {}:
             self.isUpdateStatus = True
         else:
@@ -769,8 +763,8 @@ class StatusHelper:
         if self.lastStatusMsgId != 0:
             bot.deleteMessage(chat_id=self.chatId, message_id=self.lastStatusMsgId)
             self.lastStatusMsgId = -1
-        self.msgId = msg.message_id
-        self.chatId = msg.chat.id
+        self.chatId = chatId
+        self.msgId = msgId
         self.lastStatusMsgId = bot.sendMessage(text='...', parse_mode='HTML', chat_id=self.chatId,
                                                reply_to_message_id=self.msgId).message_id
         if self.isInitThread:

@@ -1,5 +1,5 @@
 from . import *
-from . import configEditor, subProc
+from . import configEditor, subProc, mirrorConv
 
 
 def start(update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -63,12 +63,8 @@ def logs(update: telegram.Update, _: telegram.ext.CallbackContext):
     logger.info("Sent logFiles !")
 
 
-def mirror(update: telegram.Update, _: telegram.ext.CallbackContext):
-    mirrorHelper.addMirror(update.message)
-
-
 def status(update: telegram.Update, _: telegram.ext.CallbackContext):
-    mirrorHelper.statusHelper.addStatus(update.message)
+    mirrorHelper.statusHelper.addStatus(update.message.chat.id, update.message.message_id)
 
 
 def cancel(update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -160,8 +156,6 @@ def addHandlers(dispatcher: telegram.ext.Dispatcher):
     dispatcher.add_handler(restartHandler)
     logsHandler = telegram.ext.CommandHandler(BotCommands.Logs.command, logs, run_async=True)
     dispatcher.add_handler(logsHandler)
-    mirrorHandler = telegram.ext.CommandHandler(BotCommands.Mirror.command, mirror, run_async=True)
-    dispatcher.add_handler(mirrorHandler)
     statusHandler = telegram.ext.CommandHandler(BotCommands.Status.command, status, run_async=True)
     dispatcher.add_handler(statusHandler)
     cancelHandler = telegram.ext.CommandHandler(BotCommands.Cancel.command, cancel, run_async=True)
@@ -179,5 +173,6 @@ def addHandlers(dispatcher: telegram.ext.Dispatcher):
     topHandler = telegram.ext.CommandHandler(BotCommands.Top.command, top, run_async=True)
     dispatcher.add_handler(topHandler)
     dispatcher.add_handler(configEditor.handler)
+    dispatcher.add_handler(mirrorConv.handler)
     unknownHandler = telegram.ext.MessageHandler(telegram.ext.Filters.command, unknown, run_async=True)
     dispatcher.add_handler(unknownHandler)
