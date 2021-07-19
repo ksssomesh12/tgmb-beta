@@ -44,9 +44,10 @@ import warnings
 
 
 class MirrorInfo:
-    def __init__(self, msgId: int, chatId: int):
-        self.msgId = msgId
-        self.chatId = chatId
+    def __init__(self, msg: telegram.Message):
+        self.msg = msg
+        self.msgId = msg.message_id
+        self.chatId = msg.chat.id
         self.uid: str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
         self.path: str = f'{dlRootDirPath}/{self.uid}'
         self.status: str = ''
@@ -389,7 +390,7 @@ class MirrorHelper:
         return statusMsgTxt
 
     def genMirrorInfo(self, msg: telegram.Message):
-        mirrorInfo: MirrorInfo = MirrorInfo(msg.message_id, msg.chat.id)
+        mirrorInfo: MirrorInfo = MirrorInfo(msg)
         isValidDl: bool = True
         try:
             mirrorInfo.url = msg.text.split(' ')[1].strip()
