@@ -558,7 +558,7 @@ class GoogleDriveHelper:
         fileMetadata['parents'] = [parentFolderId]
         fileOp = service.files().create(supportsAllDrives=True, body=fileMetadata, media_body=mediaBody)
         upResponse = None
-        while upResponse is None:
+        while not upResponse:
             upStatus, upResponse = fileOp.next_chunk()
         return upResponse['id']
 
@@ -601,7 +601,7 @@ class GoogleDriveHelper:
                                                           request=service.files().get_media(fileId=sourceFileId,
                                                                                             supportsAllDrives=True))
         downResponse = None
-        while downResponse is None:
+        while not downResponse:
             downStatus, downResponse = fileOp.next_chunk()
         return
 
@@ -974,7 +974,7 @@ class BotCommands:
                                description='SyncCommand')
     Top = telegram.BotCommand(command='top',
                               description='TopCommand')
-    Config = telegram.BotCommand(command='Config',
+    Config = telegram.BotCommand(command='config',
                                  description='ConfigCommand')
 
 
@@ -1066,6 +1066,7 @@ def checkEnvVar():
                 raise KeyError
         except KeyError:
             logger.error(f"Required Environment Variable Missing: '{reqEnvVar}' ! Exiting...")
+            exit(1)
     for i in range(len(optEnvVarList)):
         try:
             if envVarDict[optEnvVarList[i]] in ['', ' ']:
@@ -1097,6 +1098,9 @@ def configHandler():
         logger.info('Using Dynamic Config...')
         envVarDict = {**envVarDict, **loadDict(dynamicEnvFile)}
         ariaDl(fileidEnvFile)
+        if not os.path.exists(fileidEnvFile):
+            logger.error(f"Config File Missing: '{fileidEnvFile}' ! Exiting...")
+            exit(1)
         envVarDict = {**envVarDict, **loadDict(fileidEnvFile)}
         for file in configFileList:
             fileHashInDict = envVarDict[getFileNameEnv(file) + 'Hash']
