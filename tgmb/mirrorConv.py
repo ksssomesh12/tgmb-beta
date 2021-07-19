@@ -68,12 +68,14 @@ def stageTwo(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
         query.edit_message_text(text='Choose `googleDriveUploadFolder`:',
                                 reply_markup=InlineKeyboardMaker(buttonList).build(1))
         return THIRD
-    elif query.data == '2' or query.data == '3':
+    elif query.data in ['2', '3']:
+        mirrorInfo.isGoogleDriveUpload = False
+        mirrorInfo.googleDriveUploadFolderId = ''
         if query.data == '2':
             mirrorInfo.isMegaUpload = True
         elif query.data == '3':
             mirrorInfo.isTelegramUpload = True
-        buttonList = ['isCompress', 'isDecompress', 'Proceed']
+        buttonList = ['isCompress', 'isDecompress', 'Skip']
         query.edit_message_text(text='Choose:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
         return FOURTH
 
