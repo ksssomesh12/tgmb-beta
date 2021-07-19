@@ -603,7 +603,7 @@ class GoogleDriveHelper:
         downResponse = None
         while downResponse is None:
             downStatus, downResponse = fileOp.next_chunk()
-        return downResponse['id']
+        return
 
     def downloadFolder(self, sourceFolderId: str, dlPath: str):
         folderName = self.getMetadataById(sourceFolderId, 'name')
@@ -693,6 +693,8 @@ class MegaHelper:
 class TelegramHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
+        self.uploadMaxSize: int = 2 * 1024 * 1024 * 1024
+        self.uploadMaxTimeout: int = 24 * 60 * 60
 
     def addDownload(self, mirrorInfo: MirrorInfo):
         raise NotImplementedError
@@ -701,10 +703,48 @@ class TelegramHelper:
         raise NotImplementedError
 
     def addUpload(self, mirrorInfo: MirrorInfo):
-        raise NotImplementedError
+        uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
+        upResponse: bool = True
+        if os.path.isfile(uploadPath):
+            if not self.uploadFile(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
+                upResponse = False
+                bot.sendMessage(text='Files Larger Than 2GB Cannot Be Uploaded Yet !', parse_mode='HTML',
+                                chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
+        if os.path.isdir(uploadPath):
+            if not self.uploadFolder(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
+                upResponse = False
+        if upResponse:
+            self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
+        if not upResponse:
+            self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
 
     def cancelUpload(self, uid: str):
         raise NotImplementedError
+
+    def uploadFile(self, filePath: str, chatId: int, msgId: int):
+        if os.path.getsize(filePath) < self.uploadMaxSize:
+            bot.sendDocument(document=f'file://{filePath}', filename=filePath.split('/')[-1],
+                             chat_id=chatId, reply_to_message_id=msgId, timeout=self.uploadMaxTimeout)
+            return True
+        return False
+
+    def uploadFolder(self, folderPath: str, chatId: int, msgId: int):
+        folderContents = os.listdir(folderPath)
+        skippedContents: [str] = []
+        if len(folderContents) != 0:
+            for contentName in folderContents:
+                contentPath = os.path.join(folderPath, contentName)
+                if os.path.isdir(contentPath):
+                    self.uploadFolder(contentPath, chatId, msgId)
+                if os.path.isfile(contentPath):
+                    if not self.uploadFile(contentPath, chatId, msgId):
+                        skippedContents.append(contentPath)
+        if skippedContents:
+            skippedContentsMsg = 'Skipped Files Due to uploadMaxSize:\n'
+            for content in skippedContents:
+                skippedContentsMsg += f'{content}\n'
+            bot.sendMessage(text=skippedContentsMsg, parse_mode='HTML', chat_id=chatId, reply_to_message_id=msgId)
+        return True
 
 
 class YouTubeHelper:
