@@ -1,14 +1,13 @@
 # TODO: add sufficient documentation to the functions and classes in this module
-# TODO: Code for Download from Telegram
 # TODO: Code for Download from YouTube
-# TODO: Code for Upload to Telegram
-# TODO: Code for CompressionHelper and DecompressionHelper
+# TODO: Code for CompressionHelper
+# TODO: Code for DecompressionHelper
+# TODO: Code for Download from Mega
+# TODO: Code for Upload to Mega
 # TODO: Helper functions - bot_utils.py, fs_utils.py, message_utils.py
 # TODO: Code for user filters
 # TODO: Add and Handle Exceptions
 # TODO: Code for direct link generation
-# TODO: may be add glances and run it on http port 80
-# TODO: maybe customise garbage collection
 import aria2p
 import asyncio
 import googleapiclient.discovery
