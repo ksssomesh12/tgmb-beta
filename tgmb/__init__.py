@@ -537,11 +537,8 @@ class GoogleDriveHelper:
                 self.oauthCreds.refresh(google.auth.transport.requests.Request())
                 logger.info('Google Drive API Token Refreshed !')
             else:
-                logger.info('Google Drive API Token Needs to Refreshed Manually !')
-                flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(credsJsonFile,
-                                                                                           self.oauthScopes)
-
-                self.oauthCreds = flow.run_local_server(port=0)
+                logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
+                exit(1)
             with open(tokenJsonFile, 'w') as token:
                 token.write(self.oauthCreds.to_json())
             if envVarDict['dynamicConfig'] == 'true':
@@ -1321,12 +1318,11 @@ dispatcher: telegram.ext.Dispatcher
 updater: telegram.ext.Updater
 configEnvFile = 'config.env'
 configEnvBakFile = configEnvFile + '.bak'
-credsJsonFile = 'creds.json'
 restartDumpFile = 'restart.dump'
 tokenJsonFile = 'token.json'
 dynamicEnvFile = 'dynamic.env'
 fileidEnvFile = 'fileid.env'
-configFileList: [str] = [configEnvFile, configEnvBakFile, credsJsonFile, tokenJsonFile]
+configFileList: [str] = [configEnvFile, configEnvBakFile, tokenJsonFile]
 reqEnvVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderIds',
                         'googleDriveUploadFolderDescriptions']
 optEnvVarList: [str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir', 'statusUpdateInterval']
