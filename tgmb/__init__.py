@@ -489,6 +489,7 @@ class GoogleDriveHelper:
         self.baseFolderDownloadUrl: str = 'https://drive.google.com/drive/folders/{}'
         self.googleDriveFolderMimeType: str = 'application/vnd.google-apps.folder'
         self.chunkSize: int = 32 * 1024 * 1024
+        self.service: typing.Any = None
         if useSaAuth:
             self.oauthCreds: google.oauth2.service_account.Credentials \
                 = google.oauth2.service_account.Credentials.from_service_account_file(saJsonFile)
@@ -543,21 +544,25 @@ class GoogleDriveHelper:
                     with open(tokenJsonFile, 'w') as token:
                         token.write(self.oauthCreds.to_json())
                     if envVarDict['dynamicConfig'] == 'true':
+                        # build service for patching tokenJsonFile
+                        self.buildService()
                         logger.info(self.patchFile(f"{envVarDict['CWD']}/{tokenJsonFile}"))
                         updateFileidEnv()
+                        return
                 else:
                     logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
+        self.buildService()
 
     def buildService(self):
-        return googleapiclient.discovery.build(serviceName='drive', version='v3', credentials=self.oauthCreds,
-                                               cache_discovery=False)
+        self.service = googleapiclient.discovery.build(serviceName='drive', version='v3', credentials=self.oauthCreds,
+                                                       cache_discovery=False)
 
     def uploadFile(self, filePath: str, parentFolderId: str):
         upStatus: googleapiclient.http.MediaUploadProgress
-        service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=True)
+        fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=True)
         fileMetadata['parents'] = [parentFolderId]
-        fileOp = service.files().create(supportsAllDrives=True, body=fileMetadata, media_body=mediaBody)
+        fileOp = self.service.files().create(supportsAllDrives=True, body=fileMetadata, media_body=mediaBody)
         upResponse = None
         while not upResponse:
             upStatus, upResponse = fileOp.next_chunk()
@@ -578,8 +583,7 @@ class GoogleDriveHelper:
 
     def cloneFile(self, sourceFileId: str, parentFolderId: str):
         fileMetadata = {'parents': [parentFolderId]}
-        service = self.buildService()
-        return service.files().copy(supportsAllDrives=True, fileId=sourceFileId, body=fileMetadata).execute()['id']
+        return self.service.files().copy(supportsAllDrives=True, fileId=sourceFileId, body=fileMetadata).execute()['id']
 
     def cloneFolder(self, sourceFolderId: str, parentFolderId: str):
         sourceFolderName = self.getMetadataById(sourceFolderId, 'name')
@@ -597,10 +601,9 @@ class GoogleDriveHelper:
         fileName = self.getMetadataById(sourceFileId, 'name')
         filePath = os.path.join(dlPath, fileName)
         downStatus: googleapiclient.http.MediaDownloadProgress
-        service = self.buildService()
         fileOp = googleapiclient.http.MediaIoBaseDownload(fd=open(filePath, 'wb'), chunksize=self.chunkSize,
-                                                          request=service.files().get_media(fileId=sourceFileId,
-                                                                                            supportsAllDrives=True))
+                                                          request=self.service.files().get_media(fileId=sourceFileId,
+                                                                                                 supportsAllDrives=True))
         downResponse = None
         while not downResponse:
             downStatus, downResponse = fileOp.next_chunk()
@@ -621,21 +624,18 @@ class GoogleDriveHelper:
 
     def createFolder(self, folderName: str, parentFolderId: str):
         folderMetadata = {'name': folderName, 'parents': [parentFolderId], 'mimeType': self.googleDriveFolderMimeType}
-        service = self.buildService()
-        folderOp = service.files().create(supportsAllDrives=True, body=folderMetadata).execute()
+        folderOp = self.service.files().create(supportsAllDrives=True, body=folderMetadata).execute()
         return folderOp['id']
 
     def deleteByUrl(self, url: str):
         contentId = self.mirrorHelper.getIdFromUrl(url)
         if contentId != '':
-            service = self.buildService()
-            service.files().delete(fileId=contentId, supportsAllDrives=True).execute()
+            self.service.files().delete(fileId=contentId, supportsAllDrives=True).execute()
             return f'Deleted: [{url}]'
         return 'Not a Valid Google Drive Link !'
 
     def getUpData(self, filePath: str, isResumable: bool):
         fileName = filePath.split('/')[-1]
-        service = self.buildService()
         fileMimeType = magic.Magic(mime=True).from_file(filePath)
         fileMetadata = {'name': fileName, 'mimeType': fileMimeType}
         if isResumable:
@@ -644,21 +644,19 @@ class GoogleDriveHelper:
         else:
             mediaBody = googleapiclient.http.MediaIoBaseUpload(fd=open(filePath, 'rb'), mimetype=fileMimeType,
                                                                resumable=False)
-        return service, fileName, fileMimeType, fileMetadata, mediaBody
+        return fileName, fileMimeType, fileMetadata, mediaBody
 
     def getMetadataById(self, sourceId: str, field: str):
-        service = self.buildService()
-        return service.files().get(supportsAllDrives=True, fileId=sourceId, fields=field).execute().get(field)
+        return self.service.files().get(supportsAllDrives=True, fileId=sourceId, fields=field).execute().get(field)
 
     def getFolderContentsById(self, folderId: str):
-        service = self.buildService()
         query = f"'{folderId}' in parents"
         pageToken = None
         folderContents = []
         while True:
-            result = service.files().list(supportsAllDrives=True, includeTeamDriveItems=True, spaces='drive',
-                                          fields='nextPageToken, files(name, id, mimeType, size)',
-                                          q=query, pageSize=200, pageToken=pageToken).execute()
+            result = self.service.files().list(supportsAllDrives=True, includeTeamDriveItems=True, spaces='drive',
+                                               fields='nextPageToken, files(name, id, mimeType, size)',
+                                               q=query, pageSize=200, pageToken=pageToken).execute()
             for content in result.get('files', []):
                 folderContents.append(content)
             pageToken = result.get('nextPageToken', None)
@@ -667,10 +665,10 @@ class GoogleDriveHelper:
         return folderContents
 
     def patchFile(self, filePath: str, fileId: str = ''):
-        service, fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
+        fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         if fileId == '':
             fileId = envVarDict[getFileNameEnv(fileName)]
-        fileOp = service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
+        fileOp = self.service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
 
