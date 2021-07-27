@@ -700,6 +700,7 @@ class TelegramHelper:
         replyTo = mirrorInfo.msg.reply_to_message
         for media in [replyTo.document, replyTo.audio, replyTo.video]:
             if media:
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].totalSize = media.file_size
                 self.downloadMedia(media, mirrorInfo.path)
                 break
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
