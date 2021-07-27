@@ -54,6 +54,7 @@ class MirrorInfo:
         self.tag: str = ''
         self.eta: float = 0
         self.progress: float = 0
+        self.totalSize: int = 0
         self.googleDriveDownloadSourceId: str = ''
         self.uploadUrl: str = ''
         self.googleDriveUploadFolderId: str = ''
