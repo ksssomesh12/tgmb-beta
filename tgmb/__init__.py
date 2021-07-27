@@ -833,7 +833,9 @@ class StatusHelper:
             if self.mirrorHelper.mirrorInfoDict != {}:
                 statusMsgTxt = ''
                 for uid in self.mirrorHelper.mirrorInfoDict.keys():
-                    statusMsgTxt += f'{uid} {self.mirrorHelper.mirrorInfoDict[uid].status}\n'
+                    mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfoDict[uid]
+                    statusMsgTxt += f'{mirrorInfo.uid} {mirrorInfo.status}\n' \
+                                    f'{getReadableSize(mirrorInfo.totalSize)}\n'
                 if statusMsgTxt != self.lastStatusMsgTxt:
                     bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
                                         message_id=self.lastStatusMsgId)
