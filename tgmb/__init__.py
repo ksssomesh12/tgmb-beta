@@ -699,7 +699,7 @@ class TelegramHelper:
         replyTo = mirrorInfo.msg.reply_to_message
         for media in [replyTo.document, replyTo.audio, replyTo.video]:
             if media:
-                self.downloadFile(media, mirrorInfo.path)
+                self.downloadMedia(media, mirrorInfo.path)
                 break
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
@@ -725,7 +725,7 @@ class TelegramHelper:
     def cancelUpload(self, uid: str):
         raise NotImplementedError
 
-    def downloadFile(self, media: typing.Union[telegram.Document, telegram.Audio, telegram.Video], mirrorInfoPath: str):
+    def downloadMedia(self, media: typing.Union[telegram.Document, telegram.Audio, telegram.Video], mirrorInfoPath: str):
         shutil.move(src=media.get_file(timeout=self.maxTimeout).file_path,
                     dst=os.path.join(mirrorInfoPath, media.file_name))
 
