@@ -696,7 +696,11 @@ class TelegramHelper:
         self.maxTimeout: int = 24 * 60 * 60
 
     def addDownload(self, mirrorInfo: MirrorInfo):
-        self.downloadFile(mirrorInfo.msg, mirrorInfo.path)
+        replyTo = mirrorInfo.msg.reply_to_message
+        for media in [replyTo.document, replyTo.audio, replyTo.video]:
+            if media:
+                self.downloadFile(media, mirrorInfo.path)
+                break
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str):
@@ -721,13 +725,9 @@ class TelegramHelper:
     def cancelUpload(self, uid: str):
         raise NotImplementedError
 
-    def downloadFile(self, msg: telegram.Message, mirrorInfoPath: str):
-        replyTo = msg.reply_to_message
-        for media in [replyTo.document, replyTo.audio, replyTo.video]:
-            if media:
-                shutil.move(src=media.get_file(timeout=self.maxTimeout).file_path,
-                            dst=os.path.join(mirrorInfoPath, media.file_name))
-                break
+    def downloadFile(self, media: typing.Union[telegram.Document, telegram.Audio, telegram.Video], mirrorInfoPath: str):
+        shutil.move(src=media.get_file(timeout=self.maxTimeout).file_path,
+                    dst=os.path.join(mirrorInfoPath, media.file_name))
 
     def uploadFile(self, filePath: str, chatId: int, msgId: int):
         if os.path.getsize(filePath) < self.uploadMaxSize:
