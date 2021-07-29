@@ -665,6 +665,20 @@ class GoogleDriveHelper:
                 break
         return folderContents
 
+    def getSizeById(self, sourceId: str):
+        totalSize: int = 0
+        if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
+            folderContents = self.getFolderContentsById(sourceId)
+            if len(folderContents) != 0:
+                for content in folderContents:
+                    if content.get('mimeType') == self.googleDriveFolderMimeType:
+                        totalSize += self.getSizeById(content.get('id'))
+                    else:
+                        totalSize += int(content.get('size'))
+        else:
+            totalSize = int(self.getMetadataById(sourceId, 'size'))
+        return totalSize
+
     def patchFile(self, filePath: str, fileId: str = ''):
         fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         if fileId == '':
