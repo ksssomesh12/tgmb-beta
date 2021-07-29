@@ -500,6 +500,7 @@ class GoogleDriveHelper:
 
     def addDownload(self, mirrorInfo: MirrorInfo):
         sourceId = mirrorInfo.googleDriveDownloadSourceId
+        self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].totalSize = self.getSizeById(sourceId)
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
