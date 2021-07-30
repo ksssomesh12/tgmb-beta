@@ -445,6 +445,14 @@ class AriaHelper:
             self.ariaGidDict[mirrorInfo.uid] = self.api.add_magnet(mirrorInfo.url, options={'dir': mirrorInfo.path}).gid
         if mirrorInfo.isUrl:
             self.ariaGidDict[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.url], options={'dir': mirrorInfo.path}).gid
+        gid = self.ariaGidDict[mirrorInfo.uid]
+        # TODO: check if download errored out in aria2c, with status and skip updating mirrorInfo.totalSize
+        while gid in self.ariaGidDict.values():
+            totalSize = self.getDlObj(gid).total_length
+            if totalSize != 0:
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].totalSize = totalSize
+                break
+            time.sleep(0.5)
 
     def cancelDownload(self, uid: str):
         self.getDlObj(self.ariaGidDict[uid]).remove(force=True, files=True)
