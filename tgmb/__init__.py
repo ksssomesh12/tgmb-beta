@@ -54,6 +54,7 @@ class MirrorInfo:
         self.tag: str = ''
         self.eta: float = 0
         self.progress: float = 0
+        self.totalSize: int = 0
         self.googleDriveDownloadSourceId: str = ''
         self.uploadUrl: str = ''
         self.googleDriveUploadFolderId: str = ''
@@ -444,6 +445,14 @@ class AriaHelper:
             self.ariaGidDict[mirrorInfo.uid] = self.api.add_magnet(mirrorInfo.url, options={'dir': mirrorInfo.path}).gid
         if mirrorInfo.isUrl:
             self.ariaGidDict[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.url], options={'dir': mirrorInfo.path}).gid
+        gid = self.ariaGidDict[mirrorInfo.uid]
+        # TODO: check if download errored out in aria2c, with status and skip updating mirrorInfo.totalSize
+        while gid in self.ariaGidDict.values():
+            totalSize = self.getDlObj(gid).total_length
+            if totalSize != 0:
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].totalSize = totalSize
+                break
+            time.sleep(0.5)
 
     def cancelDownload(self, uid: str):
         self.getDlObj(self.ariaGidDict[uid]).remove(force=True, files=True)
@@ -499,6 +508,7 @@ class GoogleDriveHelper:
 
     def addDownload(self, mirrorInfo: MirrorInfo):
         sourceId = mirrorInfo.googleDriveDownloadSourceId
+        self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].totalSize = self.getSizeById(sourceId)
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
@@ -664,6 +674,20 @@ class GoogleDriveHelper:
                 break
         return folderContents
 
+    def getSizeById(self, sourceId: str):
+        totalSize: int = 0
+        if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
+            folderContents = self.getFolderContentsById(sourceId)
+            if len(folderContents) != 0:
+                for content in folderContents:
+                    if content.get('mimeType') == self.googleDriveFolderMimeType:
+                        totalSize += self.getSizeById(content.get('id'))
+                    else:
+                        totalSize += int(content.get('size'))
+        else:
+            totalSize = int(self.getMetadataById(sourceId, 'size'))
+        return totalSize
+
     def patchFile(self, filePath: str, fileId: str = ''):
         fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         if fileId == '':
@@ -696,7 +720,12 @@ class TelegramHelper:
         self.maxTimeout: int = 24 * 60 * 60
 
     def addDownload(self, mirrorInfo: MirrorInfo):
-        self.downloadFile(mirrorInfo.msg, mirrorInfo.path)
+        replyTo = mirrorInfo.msg.reply_to_message
+        for media in [replyTo.document, replyTo.audio, replyTo.video]:
+            if media:
+                self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].totalSize = media.file_size
+                self.downloadMedia(media, mirrorInfo.path)
+                break
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str):
@@ -721,13 +750,9 @@ class TelegramHelper:
     def cancelUpload(self, uid: str):
         raise NotImplementedError
 
-    def downloadFile(self, msg: telegram.Message, mirrorInfoPath: str):
-        replyTo = msg.reply_to_message
-        for media in [replyTo.document, replyTo.audio, replyTo.video]:
-            if media:
-                shutil.move(src=media.get_file(timeout=self.maxTimeout).file_path,
-                            dst=os.path.join(mirrorInfoPath, media.file_name))
-                break
+    def downloadMedia(self, media: typing.Union[telegram.Document, telegram.Audio, telegram.Video], mirrorInfoPath: str):
+        shutil.move(src=media.get_file(timeout=self.maxTimeout).file_path,
+                    dst=os.path.join(mirrorInfoPath, media.file_name))
 
     def uploadFile(self, filePath: str, chatId: int, msgId: int):
         if os.path.getsize(filePath) < self.uploadMaxSize:
@@ -832,7 +857,9 @@ class StatusHelper:
             if self.mirrorHelper.mirrorInfoDict != {}:
                 statusMsgTxt = ''
                 for uid in self.mirrorHelper.mirrorInfoDict.keys():
-                    statusMsgTxt += f'{uid} {self.mirrorHelper.mirrorInfoDict[uid].status}\n'
+                    mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfoDict[uid]
+                    statusMsgTxt += f'{mirrorInfo.uid} {mirrorInfo.status}\n' \
+                                    f'{getReadableSize(mirrorInfo.totalSize)}\n'
                 if statusMsgTxt != self.lastStatusMsgTxt:
                     bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
                                         message_id=self.lastStatusMsgId)
