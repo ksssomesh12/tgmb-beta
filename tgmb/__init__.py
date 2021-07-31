@@ -819,7 +819,7 @@ class DecompressionHelper:
         self.mirrorHelper = mirrorHelper
 
     def addDecompression(self, mirrorInfo: MirrorInfo):
-        pass
+        self.decompressArchive(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
 
     def cancelDecompression(self, uid: str):
