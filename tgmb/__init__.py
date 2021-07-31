@@ -825,6 +825,22 @@ class DecompressionHelper:
     def cancelDecompression(self, uid: str):
         raise NotImplementedError
 
+    @staticmethod
+    def decompressArchive(archivePath: str):
+        archiveFormat = ''
+        for archiveFileExtension in archiveFormatsDict.values():
+            if archivePath.endswith(archiveFileExtension):
+                for archiveFileFormat in archiveFormatsDict.keys():
+                    if archiveFormatsDict[archiveFileFormat] == archiveFileExtension:
+                        archiveFormat = archiveFileFormat
+                        break
+                break
+        if archiveFormat == '':
+            return
+        folderPath = archivePath.replace(archiveFormatsDict[archiveFormat], '')
+        shutil.unpack_archive(archivePath, folderPath, archiveFormat)
+        os.remove(archivePath)
+
 
 class StatusHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
