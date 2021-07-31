@@ -1374,6 +1374,8 @@ authorizedChatsList: [int] = []
 googleDriveUploadFolderIds: [str] = []
 googleDriveUploadFolderDescriptions: [str] = []
 sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+archiveFormatsDict: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
+                                             'gztar': '.tar.gz', 'xztar': '.tar.xz'}
 
 warnings.filterwarnings("ignore")
 
