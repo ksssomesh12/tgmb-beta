@@ -796,7 +796,7 @@ class CompressionHelper:
         self.mirrorHelper = mirrorHelper
 
     def addCompression(self, mirrorInfo: MirrorInfo):
-        pass
+        self.compressSource(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
 
     def cancelCompression(self, uid: str):
