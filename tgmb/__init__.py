@@ -802,6 +802,17 @@ class CompressionHelper:
     def cancelCompression(self, uid: str):
         raise NotImplementedError
 
+    @staticmethod
+    def compressSource(sourcePath: str):
+        archiveFormat = list(archiveFormatsDict.keys())[3]
+        sourceTempPath = sourcePath + 'temp'
+        sourceName = sourcePath.split('/')[-1]
+        os.mkdir(sourceTempPath)
+        shutil.move(src=sourcePath, dst=os.path.join(sourceTempPath, sourceName))
+        shutil.move(src=sourceTempPath, dst=sourcePath)
+        shutil.make_archive(sourcePath, archiveFormat, sourcePath)
+        shutil.rmtree(sourcePath) if os.path.isdir(sourcePath) else os.remove(sourcePath)
+
 
 class DecompressionHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
