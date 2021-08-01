@@ -512,7 +512,7 @@ class GoogleDriveHelper:
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
-        if mirrorInfo.isGoogleDriveUpload:
+        if mirrorInfo.isGoogleDriveUpload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress):
             if isFolder:
                 folderId = self.cloneFolder(sourceFolderId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
                 self.mirrorHelper.mirrorInfoDict[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
@@ -530,7 +530,7 @@ class GoogleDriveHelper:
         raise NotImplementedError
 
     def addUpload(self, mirrorInfo: MirrorInfo):
-        if not mirrorInfo.isGoogleDriveDownload:
+        if not (mirrorInfo.isGoogleDriveDownload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress)):
             uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
             if os.path.isdir(uploadPath):
                 folderId = self.uploadFolder(folderPath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
@@ -796,11 +796,22 @@ class CompressionHelper:
         self.mirrorHelper = mirrorHelper
 
     def addCompression(self, mirrorInfo: MirrorInfo):
-        pass
+        self.compressSource(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
 
     def cancelCompression(self, uid: str):
         raise NotImplementedError
+
+    @staticmethod
+    def compressSource(sourcePath: str):
+        archiveFormat = list(archiveFormatsDict.keys())[3]
+        sourceTempPath = sourcePath + 'temp'
+        sourceName = sourcePath.split('/')[-1]
+        os.mkdir(sourceTempPath)
+        shutil.move(src=sourcePath, dst=os.path.join(sourceTempPath, sourceName))
+        shutil.move(src=sourceTempPath, dst=sourcePath)
+        shutil.make_archive(sourcePath, archiveFormat, sourcePath)
+        shutil.rmtree(sourcePath) if os.path.isdir(sourcePath) else os.remove(sourcePath)
 
 
 class DecompressionHelper:
@@ -808,11 +819,27 @@ class DecompressionHelper:
         self.mirrorHelper = mirrorHelper
 
     def addDecompression(self, mirrorInfo: MirrorInfo):
-        pass
+        self.decompressArchive(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
 
     def cancelDecompression(self, uid: str):
         raise NotImplementedError
+
+    @staticmethod
+    def decompressArchive(archivePath: str):
+        archiveFormat = ''
+        for archiveFileExtension in archiveFormatsDict.values():
+            if archivePath.endswith(archiveFileExtension):
+                for archiveFileFormat in archiveFormatsDict.keys():
+                    if archiveFormatsDict[archiveFileFormat] == archiveFileExtension:
+                        archiveFormat = archiveFileFormat
+                        break
+                break
+        if archiveFormat == '':
+            return
+        folderPath = archivePath.replace(archiveFormatsDict[archiveFormat], '')
+        shutil.unpack_archive(archivePath, folderPath, archiveFormat)
+        os.remove(archivePath)
 
 
 class StatusHelper:
@@ -1374,6 +1401,8 @@ authorizedChatsList: [int] = []
 googleDriveUploadFolderIds: [str] = []
 googleDriveUploadFolderDescriptions: [str] = []
 sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+archiveFormatsDict: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
+                                             'gztar': '.tar.gz', 'xztar': '.tar.xz'}
 
 warnings.filterwarnings("ignore")
 
