@@ -73,9 +73,10 @@ class MirrorInfo:
 
 
 class UrlRegex:
-    generalUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
+    generalUrl = r"(?:(?:https?|ftp)://)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
     bittorrentMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
     googleDrive = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
+    youTube = r"((https|http)://)?((www|m)\.)?(youtube\.com|youtu\.be)/(watch\?v=)?[\w\-]+"
 
 
 class MirrorStatus:
