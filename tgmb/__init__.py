@@ -428,11 +428,10 @@ class MirrorHelper:
             logger.info('No Valid Link Provided !')
         return isValidDl, mirrorInfo
 
-    # TODO: check this method
-    def getIdFromUrl(self, url: str):
+    @staticmethod
+    def getIdFromUrl(url: str):
         if 'folders' in url or 'file' in url:
-            result = re.search(UrlRegex.googleDrive, url)
-            return result.group(5)
+            return re.search(UrlRegex.googleDrive, url).group(5)
         return ''
 
 
