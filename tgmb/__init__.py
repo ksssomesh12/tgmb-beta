@@ -72,6 +72,12 @@ class MirrorInfo:
         self.isDecompress: bool = False
 
 
+class UrlRegex:
+    generalUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
+    bittorrentMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
+    googleDrive = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
+
+
 class MirrorStatus:
     addMirror = 'addMirror'
     cancelMirror = 'cancelMirror'
@@ -347,9 +353,6 @@ class MirrorHelper:
         self.compressionHelper = CompressionHelper(self)
         self.decompressionHelper = DecompressionHelper(self)
         self.statusHelper = StatusHelper(self)
-        self.regexMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
-        self.regexUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
-        self.regexGoogleDriveUrl = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
 
     def addMirror(self, mirrorInfo: MirrorInfo):
         logger.debug(vars(mirrorInfo))
@@ -398,10 +401,10 @@ class MirrorHelper:
             mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.url)
             if mirrorInfo.googleDriveDownloadSourceId != '':
                 mirrorInfo.isGoogleDriveDownload = True
-            elif re.findall(self.regexMagnet, mirrorInfo.url):
+            elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.url):
                 mirrorInfo.isMagnet = True
                 mirrorInfo.isAriaDownload = True
-            elif re.findall(self.regexUrl, mirrorInfo.url):
+            elif re.findall(UrlRegex.generalUrl, mirrorInfo.url):
                 mirrorInfo.isUrl = True
                 mirrorInfo.isAriaDownload = True
             # TODO: regex checks for download methods - Mega, YouTube
@@ -428,7 +431,7 @@ class MirrorHelper:
     # TODO: check this method
     def getIdFromUrl(self, url: str):
         if 'folders' in url or 'file' in url:
-            result = re.search(self.regexGoogleDriveUrl, url)
+            result = re.search(UrlRegex.googleDrive, url)
             return result.group(5)
         return ''
 
