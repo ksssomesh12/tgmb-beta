@@ -1,7 +1,4 @@
 # TODO: add sufficient documentation to the functions and classes in this module
-# TODO: Code for Download from YouTube
-# TODO: Code for CompressionHelper
-# TODO: Code for DecompressionHelper
 # TODO: Code for Download from Mega
 # TODO: Code for Upload to Mega
 # TODO: Helper functions - bot_utils.py, fs_utils.py, message_utils.py
