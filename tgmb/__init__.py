@@ -40,6 +40,7 @@ import tornado.ioloop
 import tornado.web
 import typing
 import warnings
+import youtube_dl
 
 
 class MirrorInfo:
@@ -402,6 +403,8 @@ class MirrorHelper:
             mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.url)
             if mirrorInfo.googleDriveDownloadSourceId != '':
                 mirrorInfo.isGoogleDriveDownload = True
+            elif re.findall(UrlRegex.youTube, mirrorInfo.url):
+                mirrorInfo.isYouTubeDownload = True
             elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.url):
                 mirrorInfo.isMagnet = True
                 mirrorInfo.isAriaDownload = True
@@ -788,10 +791,18 @@ class YouTubeHelper:
         self.mirrorHelper = mirrorHelper
 
     def addDownload(self, mirrorInfo: MirrorInfo):
-        raise NotImplementedError
+        ytdlOpts: dict = {'format': 'best/bestvideo+bestaudio', 'logger': logger,
+                          'outtmpl': f'{mirrorInfo.path}/%(title)s-%(id)s.f%(format_id)s.%(ext)s'}
+        self.downloadVideo(mirrorInfo.url, ytdlOpts)
+        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str):
         raise NotImplementedError
+
+    @staticmethod
+    def downloadVideo(videoUrl: str, ytdlOpts: dict):
+        with youtube_dl.YoutubeDL(ytdlOpts) as ytdl:
+            ytdl.download([videoUrl])
 
 
 class CompressionHelper:
