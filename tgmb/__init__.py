@@ -1,7 +1,4 @@
 # TODO: add sufficient documentation to the functions and classes in this module
-# TODO: Code for Download from YouTube
-# TODO: Code for CompressionHelper
-# TODO: Code for DecompressionHelper
 # TODO: Code for Download from Mega
 # TODO: Code for Upload to Mega
 # TODO: Helper functions - bot_utils.py, fs_utils.py, message_utils.py
@@ -40,6 +37,7 @@ import tornado.ioloop
 import tornado.web
 import typing
 import warnings
+import youtube_dl
 
 
 class MirrorInfo:
@@ -70,6 +68,13 @@ class MirrorInfo:
         self.isTelegramUpload: bool = False
         self.isCompress: bool = False
         self.isDecompress: bool = False
+
+
+class UrlRegex:
+    generalUrl = r"(?:(?:https?|ftp)://)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
+    bittorrentMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
+    googleDrive = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
+    youTube = r"((https|http)://)?((www|m)\.)?(youtube\.com|youtu\.be)/(watch\?v=)?[\w\-]+"
 
 
 class MirrorStatus:
@@ -347,9 +352,6 @@ class MirrorHelper:
         self.compressionHelper = CompressionHelper(self)
         self.decompressionHelper = DecompressionHelper(self)
         self.statusHelper = StatusHelper(self)
-        self.regexMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
-        self.regexUrl = r"(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
-        self.regexGoogleDriveUrl = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
 
     def addMirror(self, mirrorInfo: MirrorInfo):
         logger.debug(vars(mirrorInfo))
@@ -398,10 +400,12 @@ class MirrorHelper:
             mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.url)
             if mirrorInfo.googleDriveDownloadSourceId != '':
                 mirrorInfo.isGoogleDriveDownload = True
-            elif re.findall(self.regexMagnet, mirrorInfo.url):
+            elif re.findall(UrlRegex.youTube, mirrorInfo.url):
+                mirrorInfo.isYouTubeDownload = True
+            elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.url):
                 mirrorInfo.isMagnet = True
                 mirrorInfo.isAriaDownload = True
-            elif re.findall(self.regexUrl, mirrorInfo.url):
+            elif re.findall(UrlRegex.generalUrl, mirrorInfo.url):
                 mirrorInfo.isUrl = True
                 mirrorInfo.isAriaDownload = True
             # TODO: regex checks for download methods - Mega, YouTube
@@ -425,11 +429,10 @@ class MirrorHelper:
             logger.info('No Valid Link Provided !')
         return isValidDl, mirrorInfo
 
-    # TODO: check this method
-    def getIdFromUrl(self, url: str):
+    @staticmethod
+    def getIdFromUrl(url: str):
         if 'folders' in url or 'file' in url:
-            result = re.search(self.regexGoogleDriveUrl, url)
-            return result.group(5)
+            return re.search(UrlRegex.googleDrive, url).group(5)
         return ''
 
 
@@ -785,10 +788,18 @@ class YouTubeHelper:
         self.mirrorHelper = mirrorHelper
 
     def addDownload(self, mirrorInfo: MirrorInfo):
-        raise NotImplementedError
+        ytdlOpts: dict = {'format': 'best/bestvideo+bestaudio', 'logger': logger,
+                          'outtmpl': f'{mirrorInfo.path}/%(title)s-%(id)s.f%(format_id)s.%(ext)s'}
+        self.downloadVideo(mirrorInfo.url, ytdlOpts)
+        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str):
         raise NotImplementedError
+
+    @staticmethod
+    def downloadVideo(videoUrl: str, ytdlOpts: dict):
+        with youtube_dl.YoutubeDL(ytdlOpts) as ytdl:
+            ytdl.download([videoUrl])
 
 
 class CompressionHelper:

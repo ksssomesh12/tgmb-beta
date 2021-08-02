@@ -1,10 +1,9 @@
 FROM ubuntu:latest as app-base
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y aria2 curl jq libc++-dev locales nano pv python3 python3-pip python3-lxml tzdata && \
+    apt-get install -y aria2 curl ffmpeg jq libc++-dev locales nano pv python3 python3-pip python3-lxml tzdata && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN locale-gen en_US.UTF-8
-ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 
 FROM ubuntu:latest as app-compile
 ENV DEBIAN_FRONTEND='noninteractive'
@@ -26,6 +25,7 @@ FROM ghcr.io/ksssomesh12/tgmb-beta:app-compile as compile
 FROM scratch as app-final
 COPY --from=base / /
 COPY --from=compile /usr/bin/telegram-bot-api /usr/bin
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
 COPY requirements.txt .

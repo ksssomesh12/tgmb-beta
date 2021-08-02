@@ -1,5 +1,5 @@
 from . import *
-from . import configEditor, subProc, mirrorConv
+from . import configConv, subProc, mirrorConv
 
 
 def start(update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -172,7 +172,7 @@ def addHandlers(dispatcher: telegram.ext.Dispatcher):
     dispatcher.add_handler(syncHandler)
     topHandler = telegram.ext.CommandHandler(BotCommands.Top.command, top, run_async=True)
     dispatcher.add_handler(topHandler)
-    dispatcher.add_handler(configEditor.handler)
+    dispatcher.add_handler(configConv.handler)
     dispatcher.add_handler(mirrorConv.handler)
     unknownHandler = telegram.ext.MessageHandler(telegram.ext.Filters.command, unknown, run_async=True)
     dispatcher.add_handler(unknownHandler)
