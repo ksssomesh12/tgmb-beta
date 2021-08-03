@@ -2,14 +2,14 @@ from . import *
 from . import configConv, subProc, mirrorConv
 
 
-def start(update: telegram.Update, _: telegram.ext.CallbackContext):
+def startCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text=
                     f'A Telegram Bot Written in Python to Mirror Files on the Internet to Google Drive.\n'
                     f'Use /{BotCommands.Help.command} for More Info.', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-def help(update: telegram.Update, _: telegram.ext.CallbackContext):
+def helpCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text=
                     f'/{BotCommands.Start.command} {BotCommands.Start.description}\n'
                     f'/{BotCommands.Help.command} {BotCommands.Help.description}\n'
@@ -32,18 +32,18 @@ def help(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 # TODO: update stats msg
-def stats(update: telegram.Update, _: telegram.ext.CallbackContext):
+def statsCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text=getStatsMsg(), parse_mode='HTML', chat_id=update.message.chat_id,
                     reply_to_message_id=update.message.message_id)
 
 
 # TODO: CommandHandler for /ping
-def ping(update: telegram.Update, _: telegram.ext.CallbackContext):
+def pingCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text='PingCommand Test Message', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-def restart(update: telegram.Update, _: telegram.ext.CallbackContext):
+def restartCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     restartMsg: telegram.Message
     logger.info('Restarting the Bot...')
     restartMsg = bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
@@ -55,7 +55,7 @@ def restart(update: telegram.Update, _: telegram.ext.CallbackContext):
     os.execl(sys.executable, sys.executable, '-m', 'tgmb')
 
 
-def logs(update: telegram.Update, _: telegram.ext.CallbackContext):
+def logsCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMediaGroup(media=[telegram.InputMediaDocument(logFiles[0]),
                               telegram.InputMediaDocument(logFiles[1]),
                               telegram.InputMediaDocument(logFiles[2])],
@@ -63,26 +63,26 @@ def logs(update: telegram.Update, _: telegram.ext.CallbackContext):
     logger.info("Sent logFiles !")
 
 
-def status(update: telegram.Update, _: telegram.ext.CallbackContext):
+def statusCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     mirrorHelper.statusHelper.addStatus(update.message.chat.id, update.message.message_id)
 
 
-def cancel(update: telegram.Update, _: telegram.ext.CallbackContext):
+def cancelCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     mirrorHelper.cancelMirror(update.message)
 
 
 # TODO: CommandHandler for /list
-def list(update: telegram.Update, _: telegram.ext.CallbackContext):
+def listCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text='ListCommand Test Message', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-def delete(update: telegram.Update, _: telegram.ext.CallbackContext):
+def deleteCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text=mirrorHelper.googleDriveHelper.deleteByUrl(update.message.text.split(' ')[1].strip()),
                     parse_mode='HTML', chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-def authorize(update: telegram.Update, _: telegram.ext.CallbackContext):
+def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     authorizeId, authorizeName = getChatUserId(update)
     if authorizeId in authorizedChatsList:
         replyTxt = f"Already Authorized Chat / User: '{authorizeName}' - ({authorizeId}) !"
@@ -94,7 +94,7 @@ def authorize(update: telegram.Update, _: telegram.ext.CallbackContext):
                     reply_to_message_id=update.message.message_id)
 
 
-def unauthorize(update: telegram.Update, _: telegram.ext.CallbackContext):
+def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     unauthorizeId, unauthorizeName = getChatUserId(update)
     if unauthorizeId in authorizedChatsList:
         updateAuthorizedChats(unauthorizeId, unauth=True)
@@ -106,7 +106,7 @@ def unauthorize(update: telegram.Update, _: telegram.ext.CallbackContext):
                     reply_to_message_id=update.message.message_id)
 
 
-def sync(update: telegram.Update, _: telegram.ext.CallbackContext):
+def syncCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     syncMsg: telegram.Message
     if envVarDict['dynamicConfig'] == 'true':
         syncMsgTxt = 'Syncing to Google Drive...'
@@ -126,7 +126,7 @@ def sync(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 # TODO: format this properly later on or else remove from release
-def top(update: telegram.Update, _: telegram.ext.CallbackContext):
+def topCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     topMsg = ''
     tgmbProcess = psutil.Process(os.getpid())
     ariaDaemonProcess = psutil.Process(subProc.ariaDaemon.pid)
@@ -138,41 +138,41 @@ def top(update: telegram.Update, _: telegram.ext.CallbackContext):
                     reply_to_message_id=update.message.message_id)
 
 
-def unknown(update: telegram.Update, _: telegram.ext.CallbackContext):
+def unknownCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     bot.sendMessage(text='Sorry, the command is not registered with a CommandHandler !', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
 def addHandlers(dispatcher: telegram.ext.Dispatcher):
-    startHandler = telegram.ext.CommandHandler(BotCommands.Start.command, start, run_async=True)
+    startHandler = telegram.ext.CommandHandler(BotCommands.Start.command, startCallBack, run_async=True)
     dispatcher.add_handler(startHandler)
-    helpHandler = telegram.ext.CommandHandler(BotCommands.Help.command, help, run_async=True)
+    helpHandler = telegram.ext.CommandHandler(BotCommands.Help.command, helpCallBack, run_async=True)
     dispatcher.add_handler(helpHandler)
-    statsHandler = telegram.ext.CommandHandler(BotCommands.Stats.command, stats, run_async=True)
+    statsHandler = telegram.ext.CommandHandler(BotCommands.Stats.command, statsCallBack, run_async=True)
     dispatcher.add_handler(statsHandler)
-    pingHandler = telegram.ext.CommandHandler(BotCommands.Ping.command, ping, run_async=True)
+    pingHandler = telegram.ext.CommandHandler(BotCommands.Ping.command, pingCallBack, run_async=True)
     dispatcher.add_handler(pingHandler)
-    restartHandler = telegram.ext.CommandHandler(BotCommands.Restart.command, restart, run_async=True)
+    restartHandler = telegram.ext.CommandHandler(BotCommands.Restart.command, restartCallBack, run_async=True)
     dispatcher.add_handler(restartHandler)
-    logsHandler = telegram.ext.CommandHandler(BotCommands.Logs.command, logs, run_async=True)
+    logsHandler = telegram.ext.CommandHandler(BotCommands.Logs.command, logsCallBack, run_async=True)
     dispatcher.add_handler(logsHandler)
-    statusHandler = telegram.ext.CommandHandler(BotCommands.Status.command, status, run_async=True)
+    statusHandler = telegram.ext.CommandHandler(BotCommands.Status.command, statusCallBack, run_async=True)
     dispatcher.add_handler(statusHandler)
-    cancelHandler = telegram.ext.CommandHandler(BotCommands.Cancel.command, cancel, run_async=True)
+    cancelHandler = telegram.ext.CommandHandler(BotCommands.Cancel.command, cancelCallBack, run_async=True)
     dispatcher.add_handler(cancelHandler)
-    listHandler = telegram.ext.CommandHandler(BotCommands.List.command, list, run_async=True)
+    listHandler = telegram.ext.CommandHandler(BotCommands.List.command, listCallBack, run_async=True)
     dispatcher.add_handler(listHandler)
-    deleteHandler = telegram.ext.CommandHandler(BotCommands.Delete.command, delete, run_async=True)
+    deleteHandler = telegram.ext.CommandHandler(BotCommands.Delete.command, deleteCallBack, run_async=True)
     dispatcher.add_handler(deleteHandler)
-    authorizeHandler = telegram.ext.CommandHandler(BotCommands.Authorize.command, authorize, run_async=True)
+    authorizeHandler = telegram.ext.CommandHandler(BotCommands.Authorize.command, authorizeCallBack, run_async=True)
     dispatcher.add_handler(authorizeHandler)
-    unauthorizeHandler = telegram.ext.CommandHandler(BotCommands.Unauthorize.command, unauthorize, run_async=True)
+    unauthorizeHandler = telegram.ext.CommandHandler(BotCommands.Unauthorize.command, unauthorizeCallBack, run_async=True)
     dispatcher.add_handler(unauthorizeHandler)
-    syncHandler = telegram.ext.CommandHandler(BotCommands.Sync.command, sync, run_async=True)
+    syncHandler = telegram.ext.CommandHandler(BotCommands.Sync.command, syncCallBack, run_async=True)
     dispatcher.add_handler(syncHandler)
-    topHandler = telegram.ext.CommandHandler(BotCommands.Top.command, top, run_async=True)
+    topHandler = telegram.ext.CommandHandler(BotCommands.Top.command, topCallBack, run_async=True)
     dispatcher.add_handler(topHandler)
     dispatcher.add_handler(configConv.handler)
     dispatcher.add_handler(mirrorConv.handler)
-    unknownHandler = telegram.ext.MessageHandler(telegram.ext.Filters.command, unknown, run_async=True)
+    unknownHandler = telegram.ext.MessageHandler(telegram.ext.Filters.command, unknownCallBack, run_async=True)
     dispatcher.add_handler(unknownHandler)
