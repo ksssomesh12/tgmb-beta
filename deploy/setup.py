@@ -5,24 +5,13 @@ import google.oauth2.credentials
 import google.oauth2.service_account
 import google_auth_oauthlib.flow
 import hashlib
+import json
 import magic
 import os
-import re
 import shutil
 import subprocess
 import time
-
-
-def fileReformat(fileName: str):
-    formatted = ''
-    for line in open(fileName, 'r').readlines():
-        commented = re.findall("^#", line)
-        newline = re.findall("^\n", line)
-        if not commented and not newline:
-            formatted += line
-    if open(fileName, 'r').read() != formatted:
-        open(fileName, 'w').write(formatted)
-        print(f"Reformatted '{fileName}'")
+import typing
 
 
 def fileBak(fileName: str):
@@ -35,15 +24,6 @@ def fileBak(fileName: str):
         exit(1)
 
 
-def loadDict(fileName: str):
-    lines = open(fileName, 'r').readlines()
-    envDict = {}
-    for i in range(len(lines)):
-        lineDat = lines[i].replace('\n', '').replace('"', '').split(' = ')
-        envDict[lineDat[0]] = lineDat[1]
-    return envDict
-
-
 def getFileHash(fileName: str):
     hashSum = hashlib.sha256()
     blockSize = 128 * hashSum.block_size
@@ -53,6 +33,14 @@ def getFileHash(fileName: str):
         hashSum.update(fileChunk)
         fileChunk = fileStream.read(blockSize)
     return hashSum.hexdigest()
+
+
+def jsonFileLoad(jsonFileName: str):
+    return json.loads(open(jsonFileName, 'rt', encoding='utf-8').read())
+
+
+def jsonFileWrite(jsonFileName: str, jsonDict: dict):
+    open(jsonFileName, 'wt', encoding='utf-8').write(json.dumps(jsonDict, indent=2) + '\n')
 
 
 def authorizeGoogleDriveApi():
@@ -126,55 +114,54 @@ def getFileNameEnv(fileName: str):
 def syncHandler():
     global configSyncList, envVarDict, isUpdateConfig
     authorizeGoogleDriveApi()
-    for file in [dynamicEnvFile, fileidEnvFile, configEnvBakFile]:
+    for file in [dynamicJsonFile, fileidJsonFile, configJsonBakFile]:
         if os.path.exists(file):
             os.remove(file)
-    fileBak(configEnvFile)
-    fileReformat(configEnvFile)
-    fileidEnvFileDat = ''
+    fileBak(configJsonFile)
+    fileidJsonDict: typing.Dict[str, str] = {}
     for fileName in configSyncList:
         varName = getFileNameEnv(fileName)
         if isUpdateConfig:
-            fileidEnvFileDat += f'{varName} = "{filePatch(fileName)}"\n'
+            fileidJsonDict[varName] = filePatch(fileName)
         else:
-            fileidEnvFileDat += f'{varName} = "{fileUpload(fileName)}"\n'
-        fileidEnvFileDat += f'{varName}Hash = "{getFileHash(fileName)}"\n'
-    open(fileidEnvFile, 'w').write(fileidEnvFileDat)
-    dynamicEnvFileDat = f'configFolderId = "{envVarDict["configFolderId"]}"\n'
-    dynamicEnvFileDat += f'dlWaitTime = "{input("Enter dlWaitTime (default is 5): ")}"\n'
+            fileidJsonDict[varName] = fileUpload(fileName)
+        fileidJsonDict[varName + 'Hash'] = getFileHash(fileName)
+    jsonFileWrite(fileidJsonFile, fileidJsonDict)
+    dynamicJsonDict: typing.Dict[str, str] = {'configFolderId': envVarDict['configFolderId'],
+                                              'dlWaitTime': input("Enter dlWaitTime (default is 5): ")}
     if isUpdateConfig:
-        dynamicEnvFileDat += f'{getFileNameEnv(fileidEnvFile)} = "{filePatch(fileidEnvFile)}"\n'
+        dynamicJsonDict[getFileNameEnv(fileidJsonFile)] = filePatch(fileidJsonFile)
     else:
-        dynamicEnvFileDat += f'{getFileNameEnv(fileidEnvFile)} = "{fileUpload(fileidEnvFile)}"\n'
-    open(dynamicEnvFile, 'w').write(dynamicEnvFileDat)
+        dynamicJsonDict[getFileNameEnv(fileidJsonFile)] = fileUpload(fileidJsonFile)
+    jsonFileWrite(dynamicJsonFile, dynamicJsonDict)
     if isUpdateConfig:
-        filePatch(dynamicEnvFile)
+        filePatch(dynamicJsonFile)
     else:
-        fileUpload(dynamicEnvFile)
+        fileUpload(dynamicJsonFile)
 
 
-configEnvFile = 'config.env'
-configEnvBakFile = configEnvFile + '.bak'
+configJsonFile = 'config.json'
+configJsonBakFile = configJsonFile + '.bak'
 credsJsonFile = 'creds.json'
 saJsonFile = 'sa.json'
 tokenJsonFile = 'token.json'
-dynamicEnvFile = 'dynamic.env'
-fileidEnvFile = 'fileid.env'
-configSyncList = [configEnvFile, configEnvBakFile, credsJsonFile, saJsonFile, tokenJsonFile]
+dynamicJsonFile = 'dynamic.json'
+fileidJsonFile = 'fileid.json'
+configSyncList = [configJsonFile, configJsonBakFile, credsJsonFile, saJsonFile, tokenJsonFile]
 useSaAuth: bool
 oauthCreds = None
 oauthScopes = ['https://www.googleapis.com/auth/drive']
-envVarDict = {}
+envVarDict: typing.Dict[str, str] = {}
 isUpdateConfig = False
 
 if input('Do You Want to Use Dynamic Config? (y/n): ').lower() == 'y':
     if input('Do You Want to Update Existing Config? (y/n): ').lower() == 'y':
         isUpdateConfig = True
-        envVarDict[getFileNameEnv(dynamicEnvFile)] = input(f"Enter FileId of '{dynamicEnvFile}': ")
-        ariaDl(dynamicEnvFile)
-        envVarDict = {**envVarDict, **loadDict(dynamicEnvFile)}
-        ariaDl(fileidEnvFile)
-        envVarDict = {**envVarDict, **loadDict(fileidEnvFile)}
+        envVarDict[getFileNameEnv(dynamicJsonFile)] = input(f"Enter FileId of '{dynamicJsonFile}': ")
+        ariaDl(dynamicJsonFile)
+        envVarDict = {**envVarDict, **jsonFileLoad(dynamicJsonFile)}
+        ariaDl(fileidJsonFile)
+        envVarDict = {**envVarDict, **jsonFileLoad(fileidJsonFile)}
         for file in configSyncList:
             if getFileNameEnv(file) in envVarDict.keys():
                 ariaDl(file)
@@ -194,33 +181,37 @@ if input('Do You Want to Use Dynamic Config? (y/n): ').lower() == 'y':
             oauthCreds = google.oauth2.credentials.Credentials.from_authorized_user_file(tokenJsonFile, oauthScopes)
     syncHandler()
     if input('Do You Want to Delete the Local Config Files? (y/n): ').lower() == 'y':
-        for file in [*configSyncList, fileidEnvFile, dynamicEnvFile]:
+        for file in [*configSyncList, fileidJsonFile, dynamicJsonFile]:
             os.remove(file)
 else:
     authorizeGoogleDriveApi()
 print('Setup Completed !')
 exit(0)
 
-# sample - dynamic.env
-# --- BEGINS --- #
-# configFolderId = ""
-# dlWaitTime = ""
-# fileidEnv = ""
-# --- ENDS --- #
+# sample - dynamic.json
+# ----- BEGINS ----- #
+# {
+#   "configFolderId": "",
+#   "dlWaitTime": "",
+#   "fileidJson": ""
+# }
+# ------ ENDS ------ #
 
-# sample - fileid.env
-# --- BEGINS --- #
-# configEnv = ""
-# configEnvHash = ""
-# configEnvBak = ""
-# configEnvBakHash = ""
-# <---------->
-# credsJson = ""
-# credsJsonHash = ""
-# tokenJson = ""
-# tokenJsonHash = ""
-# <----or---->
-# saJson = ""
-# saJsonHash = ""
-# <---------->
-# --- ENDS --- #
+# sample - fileid.json
+# ----- BEGINS ----- #
+# {
+#   "configJson": "",
+#   "configJsonHash": "",
+#   "configJsonBak": "",
+#   "configJsonBakHash": "",
+# <-------------->
+#   "credsJson": "",
+#   "credsJsonHash": "",
+#   "tokenJson": "",
+#   "tokenJsonHash": ""
+# <------or------>
+#   "saJson": "",
+#   "saJsonHash": ""
+# <-------------->
+# }
+# ------ ENDS ------ #

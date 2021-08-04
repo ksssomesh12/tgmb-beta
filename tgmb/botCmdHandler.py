@@ -48,7 +48,7 @@ def restartCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     logger.info('Restarting the Bot...')
     restartMsg = bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
                                  reply_to_message_id=update.message.message_id)
-    open(restartDumpFile, 'wt').write(f'{restartMsg.message_id} {restartMsg.chat_id}\n')
+    jsonFileWrite(restartJsonFile, {'chatId': f'{restartMsg.chat_id}', 'msgId': f'{restartMsg.message_id}'})
     # TODO: may be not restart all subprocesses on every restart?
     subProc.term()
     time.sleep(5)
@@ -84,10 +84,10 @@ def deleteCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     authorizeId, authorizeName = getChatUserId(update)
-    if authorizeId in authorizedChatsList:
+    if str(authorizeId) in envVarDict[list(optConfigVarDict.keys())[0]].keys():
         replyTxt = f"Already Authorized Chat / User: '{authorizeName}' - ({authorizeId}) !"
     else:
-        updateAuthorizedChats(authorizeId, auth=True)
+        updateAuthorizedChatsDict(authorizeId, authorizeName, auth=True)
         replyTxt = f"Authorized Chat / User: '{authorizeName}' - ({authorizeId}) !"
     logger.info(replyTxt)
     bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
@@ -96,8 +96,8 @@ def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     unauthorizeId, unauthorizeName = getChatUserId(update)
-    if unauthorizeId in authorizedChatsList:
-        updateAuthorizedChats(unauthorizeId, unauth=True)
+    if str(unauthorizeId) in envVarDict[list(optConfigVarDict.keys())[0]].keys():
+        updateAuthorizedChatsDict(unauthorizeId, unauthorizeName, unauth=True)
         replyTxt = f"Unauthorized Chat / User: '{unauthorizeName}' - ({unauthorizeId}) !"
     else:
         replyTxt = f"Already Unauthorized Chat / User: '{unauthorizeName}' - ({unauthorizeId}) !"
@@ -114,8 +114,8 @@ def syncCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
         syncMsg = bot.sendMessage(text=syncMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                   reply_to_message_id=update.message.message_id)
         for fileName in configFileList:
-            logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{fileName}"))
-        updateFileidEnv()
+            logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['cwd']}/{fileName}"))
+        updateFileidJson()
         logger.info('Sync Completed !')
         syncMsg.edit_text(f'Sync Completed !\n{configFileList}\nPlease /{BotCommands.Restart.command} !')
     else:

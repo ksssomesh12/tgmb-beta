@@ -559,8 +559,8 @@ class GoogleDriveHelper:
                     if envVarDict['dynamicConfig'] == 'true':
                         # build service for patching tokenJsonFile
                         self.buildService()
-                        logger.info(self.patchFile(f"{envVarDict['CWD']}/{tokenJsonFile}"))
-                        updateFileidEnv()
+                        logger.info(self.patchFile(f"{envVarDict['cwd']}/{tokenJsonFile}"))
+                        updateFileidJson()
                         return
                 else:
                     logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
@@ -1129,52 +1129,37 @@ def checkBotApiStart():
 
 
 def checkEnvVar():
-    global authorizedChatsList, configEnvFile, envVarDict, optEnvVarList, optEnvVarValList, reqEnvVarList
-    global googleDriveUploadFolderIds, googleDriveUploadFolderDescriptions
-    fileReformat(configEnvFile)
-    envVarDict = {**envVarDict, **loadDict(configEnvFile)}
-    for reqEnvVar in reqEnvVarList:
+    global configJsonFile, envVarDict, optConfigVarDict, reqConfigVarList
+    envVarDict = {**envVarDict, **optConfigVarDict, **jsonFileLoad(configJsonFile)}
+    for reqConfigVar in reqConfigVarList:
         try:
-            if envVarDict[reqEnvVar] in ['', ' ']:
+            if envVarDict[reqConfigVar] in ['', ' ', {}]:
                 raise KeyError
         except KeyError:
-            logger.error(f"Required Environment Variable Missing: '{reqEnvVar}' ! Exiting...")
+            logger.error(f"Required Environment Variable Missing: '{reqConfigVar}' ! Exiting...")
             exit(1)
-    for i in range(len(optEnvVarList)):
-        try:
-            if envVarDict[optEnvVarList[i]] in ['', ' ']:
-                raise KeyError
-        except KeyError:
-            envVarDict[optEnvVarList[i]] = optEnvVarValList[i]
-    googleDriveUploadFolderIds = envVarDict['googleDriveUploadFolderIds'].split(' ')
-    googleDriveUploadFolderDescriptions = envVarDict['googleDriveUploadFolderDescriptions'].split(' ')
-    if len(googleDriveUploadFolderIds) != len(googleDriveUploadFolderDescriptions):
-        logger.error('googleDriveUploadFolder Config Error !')
-        exit(1)
-    if envVarDict[optEnvVarList[0]] != '':
-        for authorizedChat in envVarDict[optEnvVarList[0]].split(' '):
-            authorizedChatsList.append(int(authorizedChat))
 
 
 def checkRestart():
     global bot
-    if os.path.exists(restartDumpFile):
-        msgId, chatId = open(restartDumpFile, 'rt').readlines()[0].replace('\n', '').split(' ')
-        bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML', chat_id=chatId, message_id=msgId)
-        os.remove(restartDumpFile)
+    if os.path.exists(restartJsonFile):
+        restartJsonDict = jsonFileLoad(restartJsonFile)
+        bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
+                            chat_id=restartJsonDict['chatId'], message_id=restartJsonDict['msgId'])
+        os.remove(restartJsonFile)
 
 
 def configHandler():
     global configFileList, envVarDict, runningThreads, useSaAuth
-    if os.path.exists(dynamicEnvFile):
+    if os.path.exists(dynamicJsonFile):
         envVarDict['dynamicConfig'] = 'true'
         logger.info('Using Dynamic Config...')
-        envVarDict = {**envVarDict, **loadDict(dynamicEnvFile)}
-        ariaDl(fileidEnvFile)
-        if not os.path.exists(fileidEnvFile):
-            logger.error(f"Config File Missing: '{fileidEnvFile}' ! Exiting...")
+        envVarDict = {**envVarDict, **jsonFileLoad(dynamicJsonFile)}
+        ariaDl(fileidJsonFile)
+        if not os.path.exists(fileidJsonFile):
+            logger.error(f"Config File Missing: '{fileidJsonFile}' ! Exiting...")
             exit(1)
-        envVarDict = {**envVarDict, **loadDict(fileidEnvFile)}
+        envVarDict = {**envVarDict, **jsonFileLoad(fileidJsonFile)}
         for file in configFileList:
             if getFileNameEnv(file) in envVarDict.keys():
                 fileHashInDict = envVarDict[getFileNameEnv(file) + 'Hash']
@@ -1201,24 +1186,12 @@ def configHandler():
 def fileBak(fileName: str):
     fileBakName = fileName + '.bak'
     try:
-        shutil.copy(os.path.join(envVarDict['CWD'], fileName), os.path.join(envVarDict['CWD'], fileBakName))
+        shutil.copy(os.path.join(envVarDict['cwd'], fileName), os.path.join(envVarDict['cwd'], fileBakName))
         logger.info(f"Copied: '{fileName}' -> '{fileBakName}'")
     except FileNotFoundError:
         logger.error(FileNotFoundError)
         # TODO: remove exit maybe?
         exit(1)
-
-
-def fileReformat(fileName: str):
-    formatted = ''
-    for line in open(fileName, 'r').readlines():
-        commented = re.findall("^#", line)
-        newline = re.findall("^\n", line)
-        if not commented and not newline:
-            formatted += line
-    if open(fileName, 'r').read() != formatted:
-        open(fileName, 'w').write(formatted)
-        logger.info(f"Reformatted '{fileName}'")
 
 
 def getChatUserId(update: telegram.Update):
@@ -1300,6 +1273,14 @@ def getStatsMsg():
     return statsMsg
 
 
+def jsonFileLoad(jsonFileName: str):
+    return json.loads(open(jsonFileName, 'rt', encoding='utf-8').read())
+
+
+def jsonFileWrite(jsonFileName: str, jsonDict: dict):
+    open(jsonFileName, 'wt', encoding='utf-8').write(json.dumps(jsonDict, indent=2) + '\n')
+
+
 def initBotApi():
     global bot, dispatcher, updater
     updater = telegram.ext.Updater(token=envVarDict['botToken'], base_url="http://localhost:8081/bot")
@@ -1307,78 +1288,34 @@ def initBotApi():
     dispatcher = updater.dispatcher
 
 
-def loadDat(fileName: str):
-    lines = open(fileName, 'r').readlines()
-    envName = []
-    envValue = []
-    for i in range(len(lines)):
-        lineDat = lines[i].replace('\n', '').replace('"', '').split(' = ')
-        envName.append(lineDat[0])
-        envValue.append(lineDat[1])
-    return envName, envValue
-
-
-def loadDict(fileName: str):
-    envName, envValue = loadDat(fileName)
-    envDict = {}
-    for i in range(len(envName)):
-        envDict[envName[i]] = envValue[i]
-    return envDict
-
-
-def updateAuthorizedChats(chatUserId: int, auth: bool = None, unauth: bool = None):
-    global authorizedChatsList
+def updateAuthorizedChatsDict(chatUserId: int, chatUserName: str, auth: bool = None, unauth: bool = None):
     if auth:
-        authorizedChatsList.append(chatUserId)
+        envVarDict[list(optConfigVarDict.keys())[0]][str(chatUserId)] = chatUserName
     if unauth:
-        authorizedChatsList.remove(chatUserId)
-    authorizedChatsStr = ''
-    for authorizedChat in authorizedChatsList:
-        authorizedChatsStr += str(authorizedChat) + ' '
-    authorizedChatsStr = authorizedChatsStr.strip()
-    envVarDict[optEnvVarList[0]] = authorizedChatsStr
-    updateConfigEnvFiles([optEnvVarList[0]], [envVarDict[optEnvVarList[0]]])
+        envVarDict[list(optConfigVarDict.keys())[0]].pop(str(chatUserId))
+    updateConfigJsonFiles({list(optConfigVarDict.keys())[0]: envVarDict[list(optConfigVarDict.keys())[0]]})
 
 
-def updateConfigEnvFiles(newKeys: list, newVals: list):
-    fileBak(configEnvFile)
-    fileReformat(configEnvFile)
-    updateDat(configEnvFile, newKeys, newVals)
+def updateConfigJsonFiles(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]):
+    fileBak(configJsonFile)
+    jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **updateDict})
     if envVarDict['dynamicConfig'] == 'true':
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{configEnvFile}"))
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{configEnvBakFile}"))
-        updateFileidEnv()
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['cwd']}/{configJsonFile}"))
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['cwd']}/{configJsonBakFile}"))
+        updateFileidJson()
 
 
-def updateDat(fileName: str, newKeys: list, newVals: list):
-    keyExists = False
-    fileReformat(fileName)
-    datKeys, datVals = loadDat(fileName)
-    for n in range(len(newKeys)):
-        for i in range(len(datKeys)):
-            if datKeys[i] == newKeys[n]:
-                keyExists = True
-                datVals[i] = newVals[n]
-        if not keyExists:
-            datKeys.append(newKeys[n])
-            datVals.append(newVals[n])
-    datNew = ''
-    for i in range(len(datKeys)):
-        datNew += f'{datKeys[i]} = "{datVals[i]}"\n'
-    open(fileName, 'w').write(datNew)
-
-
-def updateFileidEnv():
-    global configFileList, envVarDict, fileidEnvFile
-    fileidEnvDat = ''
+def updateFileidJson():
+    global configFileList, envVarDict, fileidJsonFile
+    fileidJsonDict: typing.Dict[str, str] = {}
     for file in configFileList:
         fileNameEnv = getFileNameEnv(file)
         fileHashEnv = fileNameEnv + 'Hash'
-        envVarDict[fileHashEnv] = getFileHash(os.path.join(envVarDict['CWD'], file))
-        fileidEnvDat += f'{fileNameEnv} = "{envVarDict[fileNameEnv]}"\n'
-        fileidEnvDat += f'{fileHashEnv} = "{envVarDict[fileHashEnv]}"\n'
-    open(fileidEnvFile, 'wt').write(fileidEnvDat)
-    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['CWD']}/{fileidEnvFile}"))
+        envVarDict[fileHashEnv] = getFileHash(os.path.join(envVarDict['cwd'], file))
+        fileidJsonDict[fileNameEnv] = envVarDict[fileNameEnv]
+        fileidJsonDict[fileHashEnv] = envVarDict[fileHashEnv]
+    jsonFileWrite(fileidJsonFile, fileidJsonDict)
+    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['cwd']}/{fileidJsonFile}"))
 
 
 # loguru default format
@@ -1391,26 +1328,22 @@ bot: telegram.Bot
 dispatcher: telegram.ext.Dispatcher
 updater: telegram.ext.Updater
 useSaAuth: bool
-configEnvFile = 'config.env'
-configEnvBakFile = configEnvFile + '.bak'
-restartDumpFile = 'restart.dump'
+configJsonFile = 'config.json'
+configJsonBakFile = configJsonFile + '.bak'
+restartJsonFile = 'restart.json'
 saJsonFile = 'sa.json'
 tokenJsonFile = 'token.json'
-dynamicEnvFile = 'dynamic.env'
-fileidEnvFile = 'fileid.env'
-configFileList: [str] = [configEnvFile, configEnvBakFile, saJsonFile, tokenJsonFile]
-reqEnvVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderIds',
-                        'googleDriveUploadFolderDescriptions']
-optEnvVarList: [str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir', 'statusUpdateInterval']
-optEnvVarValList: [str] = ['', 'tgmb-beta', 'dl', '5']
-envVarDict: {str: str} = {'CWD': os.getcwd()}
+dynamicJsonFile = 'dynamic.json'
+fileidJsonFile = 'fileid.json'
+configFileList: [str] = [configJsonFile, configJsonBakFile, saJsonFile, tokenJsonFile]
+reqConfigVarList: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderIds']
+optConfigVarDict: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]] = \
+    {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
+envVarDict: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]] = {'cwd': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
-authorizedChatsList: [int] = []
-googleDriveUploadFolderIds: [str] = []
-googleDriveUploadFolderDescriptions: [str] = []
 sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 archiveFormatsDict: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
                                              'gztar': '.tar.gz', 'xztar': '.tar.xz'}
@@ -1436,7 +1369,7 @@ mirrorHelper = MirrorHelper()
 
 mirrorHelper.googleDriveHelper.authorizeApi()
 
-dlRootDirPath = os.path.join(envVarDict['CWD'], envVarDict['dlRootDir'])
+dlRootDirPath = os.path.join(envVarDict['cwd'], envVarDict[list(optConfigVarDict.keys())[2]])
 
 if os.path.exists(dlRootDirPath):
     shutil.rmtree(dlRootDirPath)
