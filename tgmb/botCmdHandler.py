@@ -84,7 +84,7 @@ def deleteCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     authorizeId, authorizeName = getChatUserId(update)
-    if str(authorizeId) in envVarDict[list(optConfigVarDict.keys())[0]].keys():
+    if str(authorizeId) in envVars[list(optConfigVars.keys())[0]].keys():
         replyTxt = f"Already Authorized Chat / User: '{authorizeName}' - ({authorizeId}) !"
     else:
         updateAuthorizedChatsDict(authorizeId, authorizeName, auth=True)
@@ -96,7 +96,7 @@ def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     unauthorizeId, unauthorizeName = getChatUserId(update)
-    if str(unauthorizeId) in envVarDict[list(optConfigVarDict.keys())[0]].keys():
+    if str(unauthorizeId) in envVars[list(optConfigVars.keys())[0]].keys():
         updateAuthorizedChatsDict(unauthorizeId, unauthorizeName, unauth=True)
         replyTxt = f"Unauthorized Chat / User: '{unauthorizeName}' - ({unauthorizeId}) !"
     else:
@@ -108,16 +108,16 @@ def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext
 
 def syncCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     syncMsg: telegram.Message
-    if envVarDict['dynamicConfig'] == 'true':
+    if envVars['dynamicConfig'] == 'true':
         syncMsgTxt = 'Syncing to Google Drive...'
         logger.info(syncMsgTxt)
         syncMsg = bot.sendMessage(text=syncMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                   reply_to_message_id=update.message.message_id)
-        for fileName in configFileList:
-            logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVarDict['cwd']}/{fileName}"))
+        for fileName in configFiles:
+            logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['cwd']}/{fileName}"))
         updateFileidJson()
         logger.info('Sync Completed !')
-        syncMsg.edit_text(f'Sync Completed !\n{configFileList}\nPlease /{BotCommands.Restart.command} !')
+        syncMsg.edit_text(f'Sync Completed !\n{configFiles}\nPlease /{BotCommands.Restart.command} !')
     else:
         syncMsgText = "Not Synced - Using Static Config !"
         logger.info(syncMsgText)

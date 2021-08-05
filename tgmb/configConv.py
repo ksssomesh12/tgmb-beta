@@ -2,33 +2,33 @@ from . import *
 
 
 def loadConfigDict():
-    global configDict, configDictNew
-    configDict = {}
-    configDictNew = {}
-    configDict = jsonFileLoad(configJsonFile)
-    for key in [reqConfigVarList[4], list(optConfigVarDict.keys())[0]]:
-        if key in list(configDict.keys()):
-            configDict.pop(key)
+    global configVars, configVarsNew
+    configVars = {}
+    configVarsNew = {}
+    configVars = jsonFileLoad(configJsonFile)
+    for key in [reqConfigVars[4], list(optConfigVars.keys())[0]]:
+        if key in list(configVars.keys()):
+            configVars.pop(key)
 
 
 def chooseKey(update: telegram.Update = None, query: telegram.CallbackQuery = None) -> int:
-    global configDict, tempKey, tempVal
+    global configVars, tempKey, tempVal
     tempKey, tempVal = '', ''
     if query is None:
         update.message.reply_text(text="Select an Environment Variable:",
-                                  reply_markup=InlineKeyboardMaker(list(configDict.keys()) + ['Exit']).build(1))
+                                  reply_markup=InlineKeyboardMaker(list(configVars.keys()) + ['Exit']).build(1))
     if update is None:
         query.edit_message_text(text="Select an Environment Variable:",
-                                reply_markup=InlineKeyboardMaker(list(configDict.keys()) + ['Exit']).build(1))
+                                reply_markup=InlineKeyboardMaker(list(configVars.keys()) + ['Exit']).build(1))
     return FIRST
 
 
 def viewVal(query: telegram.CallbackQuery) -> int:
-    global configDict, tempKey
+    global configVars, tempKey
     tempKeyIndex = int(query.data) - 1
-    if tempKeyIndex != len(list(configDict.keys())):
-        tempKey = list(configDict.keys())[tempKeyIndex]
-        query.edit_message_text(text=f'"{tempKey}" = "{configDict[tempKey]}"',
+    if tempKeyIndex != len(list(configVars.keys())):
+        tempKey = list(configVars.keys())[tempKeyIndex]
+        query.edit_message_text(text=f'"{tempKey}" = "{configVars[tempKey]}"',
                                 reply_markup=InlineKeyboardMaker(['Edit', 'Back']).build(2))
         return SECOND
     else:
@@ -57,19 +57,19 @@ def verifyNewVal(query: telegram.CallbackQuery) -> int:
 
 
 def proceedNewVal(query: telegram.CallbackQuery) -> int:
-    global configDict, configDictNew, tempKey, tempVal
-    configDictNew[tempKey] = tempVal
+    global configVarsNew, tempKey, tempVal
+    configVarsNew[tempKey] = tempVal
     buttonList = ['Save Changes', 'Discard Changes', 'Change Another Value']
     replyStr = ''
-    for i in range(len(list(configDictNew.keys()))):
-        replyStr += f'{list(configDictNew.keys())[i]} = "{list(configDictNew.values())[i]}"' + '\n'
+    for i in range(len(list(configVarsNew.keys()))):
+        replyStr += f'{list(configVarsNew.keys())[i]} = "{list(configVarsNew.values())[i]}"' + '\n'
     query.edit_message_text(text=replyStr, reply_markup=InlineKeyboardMaker(buttonList).build(1))
     return FIFTH
 
 
 def discardChanges(query: telegram.CallbackQuery) -> int:
-    global configDictNew
-    configDictNew = {}
+    global configVarsNew
+    configVarsNew = {}
     logger.info(f"Owner '{query.from_user.first_name}' Discarded Changes Made to '{configJsonFile}' !")
     query.edit_message_text(text=f"Discarded Changes.",
                             reply_markup=InlineKeyboardMaker(['Start Over', 'Exit']).build(2))
@@ -77,9 +77,9 @@ def discardChanges(query: telegram.CallbackQuery) -> int:
 
 
 def saveChanges(query: telegram.CallbackQuery) -> int:
-    global configDictNew
+    global configVarsNew
     query.edit_message_text(text=f"Saving Changes...")
-    updateConfigJsonFiles(configDictNew)
+    updateConfigJson(configVarsNew)
     logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{configJsonFile}' !")
     query.edit_message_text(text=f"Saved Changes.\nPlease /{BotCommands.Restart.command} to Load Changes.")
     return telegram.ext.ConversationHandler.END
@@ -151,8 +151,8 @@ def stageSix(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
 
 
 FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH = range(6)
-configDict: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
-configDictNew: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
+configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
+configVarsNew: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
 tempKey: str
 tempVal: str
 newValMsg: telegram.Message
