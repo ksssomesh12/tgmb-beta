@@ -36,7 +36,7 @@ def stageZero(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     if isValidDl:
         # <setDefaults>
         mirrorInfo.isGoogleDriveUpload = True
-        mirrorInfo.googleDriveUploadFolderId = googleDriveUploadFolderIds[0]
+        mirrorInfo.googleDriveUploadFolderId = list(envVars[reqConfigVars[4]].keys())[0]
         # </setDefaults>
         update.message.reply_text(text=getMirrorInfoStr(), reply_to_message_id=update.message.message_id,
                                   reply_markup=InlineKeyboardMaker(['Use Defaults', 'Customize']).build(1))
@@ -64,7 +64,7 @@ def stageTwo(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query = update.callback_query
     query.answer()
     if query.data == '1':
-        buttonList = [*googleDriveUploadFolderDescriptions]
+        buttonList = [*list(envVars[reqConfigVars[4]].values())]
         query.edit_message_text(text='Choose `googleDriveUploadFolder`:',
                                 reply_markup=InlineKeyboardMaker(buttonList).build(1))
         return THIRD
@@ -83,7 +83,7 @@ def stageTwo(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
 def stageThree(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query = update.callback_query
     query.answer()
-    mirrorInfo.googleDriveUploadFolderId = googleDriveUploadFolderIds[(int(query.data) - 1)]
+    mirrorInfo.googleDriveUploadFolderId = list(envVars[reqConfigVars[4]].keys())[(int(query.data) - 1)]
     buttonList = ['isCompress', 'isDecompress', 'Skip']
     query.edit_message_text(text='Choose:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
     return FOURTH

@@ -4,15 +4,15 @@ ariaDaemon: subprocess.Popen
 botApiServer: subprocess.Popen
 
 botApiServerStartCmd = [f"telegram-bot-api", f"--local", f"--verbosity=9",
-                        f"--api-id={envVarDict['telegramApiId']}", f"--api-hash={envVarDict['telegramApiHash']}",
-                        f"--log={os.path.join(envVarDict['CWD'], logFiles[1])}"]
-ariaDaemonStartCmd = [f"aria2c", "--daemon", "--enable-rpc", f"--rpc-secret={envVarDict['ariaRpcSecret']}",
+                        f"--api-id={envVars[reqConfigVars[2]]}", f"--api-hash={envVars[reqConfigVars[3]]}",
+                        f"--log={os.path.join(envVars['cwd'], logFiles[1])}"]
+ariaDaemonStartCmd = [f"aria2c", "--daemon", "--enable-rpc", f"--rpc-secret={envVars[list(optConfigVars.keys())[1]]}",
                       f"--follow-torrent=mem", f"--check-certificate=false", f"--max-connection-per-server=10",
                       f"--rpc-max-request-size=1024M", f"--min-split-size=10M", f"--allow-overwrite=true",
                       f"--bt-max-peers=0", f"--seed-time=0.01", f"--split=10", f"--max-overall-upload-limit=1K",
                       f"--bt-tracker=$(aria2c 'https://trackerslist.com/all_aria2.txt' --quiet=true"
                       f"--allow-overwrite=true --out=trackerslist.txt --check-certificate=false; cat trackerslist.txt)",
-                      f"--log={os.path.join(envVarDict['CWD'], logFiles[2])}"]
+                      f"--log={os.path.join(envVars['cwd'], logFiles[2])}"]
 
 
 def botApiServerStart():
@@ -46,9 +46,9 @@ def delLogFiles():
             logger.debug(f"Deleted: '{file}'")
 
 
-def procKill(procList: list):
-    for procName in procList:
-        stdout = subprocess.run(['pkill', procName, '-e'],
+def procKill(procs: list):
+    for proc in procs:
+        stdout = subprocess.run(['pkill', proc, '-e'],
                                 stdout=subprocess.PIPE).stdout.decode('utf-8').replace('\n', ' ')
         if stdout not in ['', ' ']:
             logger.debug(stdout)

@@ -1,0 +1,23 @@
+{
+  "botToken": "",
+  "botOwnerId": "",
+  "telegramApiId": "",
+  "telegramApiHash": "",
+  "googleDriveUploadFolderIds": {
+    "#folderId-01": "#folderDescription-01",
+    "#folderId-02": "#folderDescription-02",
+    "#folderId-03": "#folderDescription-03",
+    "#folderId-04": "#folderDescription-04",
+    "#folderId-05": "#folderDescription-05"
+  },
+  "authorizedChats": {
+    "#chatId-01": "#chatName-01",
+    "#chatId-02": "#chatName-02",
+    "#chatId-03": "#chatName-03",
+    "#chatId-04": "#chatName-04",
+    "#chatId-05": "#chatName-05"
+  },
+  "ariaRpcSecret": "tgmb-beta",
+  "dlRootDir": "dl",
+  "statusUpdateInterval": "5"
+}
