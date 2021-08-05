@@ -408,7 +408,6 @@ class MirrorHelper:
             elif re.findall(UrlRegex.generalUrl, mirrorInfo.url):
                 mirrorInfo.isUrl = True
                 mirrorInfo.isAriaDownload = True
-            # TODO: regex checks for download methods - Mega, YouTube
             else:
                 isValidDl = False
         except IndexError:
@@ -440,7 +439,7 @@ class AriaHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
         self.api: aria2p.API = aria2p.API(aria2p.Client(host="http://localhost", port=6800,
-                                                        secret=envVarDict['ariaRpcSecret']))
+                                                        secret=envVarDict[list(optConfigVarDict.keys())[1]]))
         self.ariaGidDict: typing.Dict[str, str] = {}
 
     def addDownload(self, mirrorInfo: MirrorInfo):
@@ -858,7 +857,7 @@ class StatusHelper:
         self.mirrorHelper = mirrorHelper
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
-        self.statusUpdateInterval: int = int(envVarDict['statusUpdateInterval'])
+        self.statusUpdateInterval: int = int(envVarDict[list(optConfigVarDict.keys())[3]])
         self.msgId: int = 0
         self.chatId: int = 0
         self.lastStatusMsgId: int = 0
@@ -1160,11 +1159,11 @@ def configHandler():
             logger.error(f"Config File Missing: '{fileidJsonFile}' ! Exiting...")
             exit(1)
         envVarDict = {**envVarDict, **jsonFileLoad(fileidJsonFile)}
-        for file in configFileList:
-            if getFileNameEnv(file) in envVarDict.keys():
-                fileHashInDict = envVarDict[getFileNameEnv(file) + 'Hash']
-                if not (os.path.exists(file) and fileHashInDict == getFileHash(file)):
-                    initThread(target=ariaDl, name=f'{file}-ariaDl', fileName=file)
+        for configFile in configFileList:
+            if getFileNameEnv(configFile) in envVarDict.keys():
+                fileHashInDict = envVarDict[getFileNameEnv(configFile) + 'Hash']
+                if not (os.path.exists(configFile) and fileHashInDict == getFileHash(configFile)):
+                    initThread(target=ariaDl, name=f'{configFile}-ariaDl', fileName=configFile)
         while runningThreads:
             time.sleep(0.1)
     else:
@@ -1177,9 +1176,9 @@ def configHandler():
     else:
         useSaAuth = False
         configFileList.remove(saJsonFile)
-    for file in configFileList:
-        if not os.path.exists(file):
-            logger.error(f"Config File Missing: '{file}' ! Exiting...")
+    for configFile in configFileList:
+        if not os.path.exists(configFile):
+            logger.error(f"Config File Missing: '{configFile}' ! Exiting...")
             exit(1)
 
 
@@ -1283,7 +1282,7 @@ def jsonFileWrite(jsonFileName: str, jsonDict: dict):
 
 def initBotApi():
     global bot, dispatcher, updater
-    updater = telegram.ext.Updater(token=envVarDict['botToken'], base_url="http://localhost:8081/bot")
+    updater = telegram.ext.Updater(token=envVarDict[reqConfigVarList[0]], base_url="http://localhost:8081/bot")
     bot = updater.bot
     dispatcher = updater.dispatcher
 
