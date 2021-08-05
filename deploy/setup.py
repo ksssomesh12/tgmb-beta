@@ -121,23 +121,14 @@ def syncHandler():
     fileidJsonDict: typing.Dict[str, str] = {}
     for fileName in configSyncList:
         varName = getFileNameEnv(fileName)
-        if isUpdateConfig:
-            fileidJsonDict[varName] = filePatch(fileName)
-        else:
-            fileidJsonDict[varName] = fileUpload(fileName)
+        fileidJsonDict[varName] = (filePatch(fileName) if isUpdateConfig else fileUpload(fileName))
         fileidJsonDict[varName + 'Hash'] = getFileHash(fileName)
     jsonFileWrite(fileidJsonFile, fileidJsonDict)
-    dynamicJsonDict: typing.Dict[str, str] = {'configFolderId': envVarDict['configFolderId'],
-                                              'dlWaitTime': input("Enter dlWaitTime (default is 5): ")}
-    if isUpdateConfig:
-        dynamicJsonDict[getFileNameEnv(fileidJsonFile)] = filePatch(fileidJsonFile)
-    else:
-        dynamicJsonDict[getFileNameEnv(fileidJsonFile)] = fileUpload(fileidJsonFile)
+    dynamicJsonDict: typing.Dict[str, str] = \
+        {'configFolderId': envVarDict['configFolderId'], 'dlWaitTime': input("Enter dlWaitTime (default is 5): "),
+         getFileNameEnv(fileidJsonFile): (filePatch(fileidJsonFile) if isUpdateConfig else fileUpload(fileidJsonFile))}
     jsonFileWrite(dynamicJsonFile, dynamicJsonDict)
-    if isUpdateConfig:
-        filePatch(dynamicJsonFile)
-    else:
-        fileUpload(dynamicJsonFile)
+    (filePatch(dynamicJsonFile) if isUpdateConfig else fileUpload(dynamicJsonFile))
 
 
 configJsonFile = 'config.json'
