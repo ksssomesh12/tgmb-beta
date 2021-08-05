@@ -3,32 +3,29 @@ from . import configConv, subProc, mirrorConv
 
 
 def startCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    bot.sendMessage(text=
-                    f'A Telegram Bot Written in Python to Mirror Files on the Internet to Google Drive.\n'
-                    f'Use /{BotCommands.Help.command} for More Info.', parse_mode='HTML',
+    bot.sendMessage(text=f'A Telegram Bot Written in Python to Mirror Files on the Internet to Google Drive.\n'
+                         f'Use /{BotCommands.Help.command} for More Info.', parse_mode='HTML',
                     chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
 def helpCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    bot.sendMessage(text=
-                    f'/{BotCommands.Start.command} {BotCommands.Start.description}\n'
-                    f'/{BotCommands.Help.command} {BotCommands.Help.description}\n'
-                    f'/{BotCommands.Stats.command} {BotCommands.Stats.description}\n'
-                    f'/{BotCommands.Ping.command} {BotCommands.Ping.description}\n'
-                    f'/{BotCommands.Restart.command} {BotCommands.Restart.description}\n'
-                    f'/{BotCommands.Logs.command} {BotCommands.Logs.description}\n'
-                    f'/{BotCommands.Mirror.command} {BotCommands.Mirror.description}\n'
-                    f'/{BotCommands.Status.command} {BotCommands.Status.description}\n'
-                    f'/{BotCommands.Cancel.command} {BotCommands.Cancel.description}\n'
-                    f'/{BotCommands.List.command} {BotCommands.List.description}\n'
-                    f'/{BotCommands.Delete.command} {BotCommands.Delete.description}\n'
-                    f'/{BotCommands.Authorize.command} {BotCommands.Authorize.description}\n'
-                    f'/{BotCommands.Unauthorize.command} {BotCommands.Unauthorize.description}\n'
-                    f'/{BotCommands.Sync.command} {BotCommands.Sync.description}\n'
-                    f'/{BotCommands.Top.command} {BotCommands.Top.description}\n'
-                    f'/{BotCommands.Config.command} {BotCommands.Config.description}\n',
-                    parse_mode='HTML', chat_id=update.message.chat_id,
-                    reply_to_message_id=update.message.message_id)
+    bot.sendMessage(text=f'/{BotCommands.Start.command} {BotCommands.Start.description}\n'
+                         f'/{BotCommands.Help.command} {BotCommands.Help.description}\n'
+                         f'/{BotCommands.Stats.command} {BotCommands.Stats.description}\n'
+                         f'/{BotCommands.Ping.command} {BotCommands.Ping.description}\n'
+                         f'/{BotCommands.Restart.command} {BotCommands.Restart.description}\n'
+                         f'/{BotCommands.Logs.command} {BotCommands.Logs.description}\n'
+                         f'/{BotCommands.Mirror.command} {BotCommands.Mirror.description}\n'
+                         f'/{BotCommands.Status.command} {BotCommands.Status.description}\n'
+                         f'/{BotCommands.Cancel.command} {BotCommands.Cancel.description}\n'
+                         f'/{BotCommands.List.command} {BotCommands.List.description}\n'
+                         f'/{BotCommands.Delete.command} {BotCommands.Delete.description}\n'
+                         f'/{BotCommands.Authorize.command} {BotCommands.Authorize.description}\n'
+                         f'/{BotCommands.Unauthorize.command} {BotCommands.Unauthorize.description}\n'
+                         f'/{BotCommands.Sync.command} {BotCommands.Sync.description}\n'
+                         f'/{BotCommands.Top.command} {BotCommands.Top.description}\n'
+                         f'/{BotCommands.Config.command} {BotCommands.Config.description}\n', parse_mode='HTML',
+                    chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
 # TODO: update stats msg
@@ -128,12 +125,12 @@ def syncCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 # TODO: format this properly later on or else remove from release
 def topCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     topMsg = ''
-    tgmbProcess = psutil.Process(os.getpid())
-    ariaDaemonProcess = psutil.Process(subProc.ariaDaemon.pid)
-    botApiServerProcess = psutil.Process(subProc.botApiServer.pid)
-    topMsg += f'{tgmbProcess.name()}\n{tgmbProcess.cpu_percent()}\n{tgmbProcess.memory_percent()}\n'
-    topMsg += f'{ariaDaemonProcess.name()}\n{ariaDaemonProcess.cpu_percent()}\n{ariaDaemonProcess.memory_percent()}\n'
-    topMsg += f'{botApiServerProcess.name()}\n{botApiServerProcess.cpu_percent()}\n{botApiServerProcess.memory_percent()}\n'
+    tgmbProc = psutil.Process(os.getpid())
+    ariaDaemonProc = psutil.Process(subProc.ariaDaemon.pid)
+    botApiServerProc = psutil.Process(subProc.botApiServer.pid)
+    topMsg += f'{tgmbProc.name()}\n{tgmbProc.cpu_percent()}\n{tgmbProc.memory_percent()}\n'
+    topMsg += f'{ariaDaemonProc.name()}\n{ariaDaemonProc.cpu_percent()}\n{ariaDaemonProc.memory_percent()}\n'
+    topMsg += f'{botApiServerProc.name()}\n{botApiServerProc.cpu_percent()}\n{botApiServerProc.memory_percent()}\n'
     bot.sendMessage(text=topMsg, parse_mode='HTML', chat_id=update.message.chat_id,
                     reply_to_message_id=update.message.message_id)
 
