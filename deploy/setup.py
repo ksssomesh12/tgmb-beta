@@ -57,9 +57,9 @@ def authorizeGoogleDriveApi():
 
 
 def ariaDl(fileName: str):
-    global envVarDict
+    global envVars
     isDownloaded = False
-    fileUrl = 'https://docs.google.com/uc?export=download&id={}'.format(envVarDict[getFileNameEnv(fileName)])
+    fileUrl = 'https://docs.google.com/uc?export=download&id={}'.format(envVars[getFileNameEnv(fileName)])
     if os.path.exists(fileName):
         os.remove(fileName)
     subprocess.run(['aria2c', fileUrl, '--quiet=true', '--out=' + fileName])
@@ -78,11 +78,11 @@ def ariaDl(fileName: str):
 
 
 def fileUpload(fileName: str):
-    global oauthCreds, envVarDict
+    global oauthCreds, envVars
     service = googleapiclient.discovery.build(serviceName='drive', version='v3',
                                               credentials=oauthCreds, cache_discovery=False)
     fileMimetype = magic.Magic(mime=True).from_file(fileName)
-    fileMetadata = {'name': fileName, 'mimeType': fileMimetype, 'parents': [envVarDict['configFolderId']]}
+    fileMetadata = {'name': fileName, 'mimeType': fileMimetype, 'parents': [envVars['configFolderId']]}
     mediaBody = googleapiclient.http.MediaFileUpload(filename=fileName, mimetype=fileMimetype, resumable=False)
     fileOp = service.files().create(body=fileMetadata, media_body=mediaBody).execute()
     print(f"Uploaded: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]")
@@ -90,8 +90,8 @@ def fileUpload(fileName: str):
 
 
 def filePatch(fileName: str):
-    global oauthCreds, envVarDict
-    fileId = envVarDict[getFileNameEnv(fileName)]
+    global oauthCreds, envVars
+    fileId = envVars[getFileNameEnv(fileName)]
     service = googleapiclient.discovery.build(serviceName='drive', version='v3',
                                               credentials=oauthCreds, cache_discovery=False)
     fileMimetype = magic.Magic(mime=True).from_file(fileName)
@@ -112,20 +112,20 @@ def getFileNameEnv(fileName: str):
 
 
 def syncHandler():
-    global configSyncList, envVarDict, isUpdateConfig
+    global configFiles, envVars, isUpdateConfig
     authorizeGoogleDriveApi()
     for file in [dynamicJsonFile, fileidJsonFile, configJsonBakFile]:
         if os.path.exists(file):
             os.remove(file)
     fileBak(configJsonFile)
     fileidJsonDict: typing.Dict[str, str] = {}
-    for fileName in configSyncList:
-        varName = getFileNameEnv(fileName)
-        fileidJsonDict[varName] = (filePatch(fileName) if isUpdateConfig else fileUpload(fileName))
-        fileidJsonDict[varName + 'Hash'] = getFileHash(fileName)
+    for configFile in configFiles:
+        varName = getFileNameEnv(configFile)
+        fileidJsonDict[varName] = (filePatch(configFile) if isUpdateConfig else fileUpload(configFile))
+        fileidJsonDict[varName + 'Hash'] = getFileHash(configFile)
     jsonFileWrite(fileidJsonFile, fileidJsonDict)
     dynamicJsonDict: typing.Dict[str, str] = \
-        {'configFolderId': envVarDict['configFolderId'], 'dlWaitTime': input("Enter dlWaitTime (default is 5): "),
+        {'configFolderId': envVars['configFolderId'], 'dlWaitTime': input("Enter dlWaitTime (default is 5): "),
          getFileNameEnv(fileidJsonFile): (filePatch(fileidJsonFile) if isUpdateConfig else fileUpload(fileidJsonFile))}
     jsonFileWrite(dynamicJsonFile, dynamicJsonDict)
     (filePatch(dynamicJsonFile) if isUpdateConfig else fileUpload(dynamicJsonFile))
@@ -138,42 +138,42 @@ saJsonFile = 'sa.json'
 tokenJsonFile = 'token.json'
 dynamicJsonFile = 'dynamic.json'
 fileidJsonFile = 'fileid.json'
-configSyncList = [configJsonFile, configJsonBakFile, credsJsonFile, saJsonFile, tokenJsonFile]
+configFiles: typing.List[str] = [configJsonFile, configJsonBakFile, credsJsonFile, saJsonFile, tokenJsonFile]
 useSaAuth: bool
 oauthCreds = None
-oauthScopes = ['https://www.googleapis.com/auth/drive']
-envVarDict: typing.Dict[str, str] = {}
+oauthScopes: typing.List[str] = ['https://www.googleapis.com/auth/drive']
+envVars: typing.Dict[str, str] = {}
 isUpdateConfig = False
 
 if input('Do You Want to Use Dynamic Config? (y/n): ').lower() == 'y':
     if input('Do You Want to Update Existing Config? (y/n): ').lower() == 'y':
         isUpdateConfig = True
-        envVarDict[getFileNameEnv(dynamicJsonFile)] = input(f"Enter FileId of '{dynamicJsonFile}': ")
+        envVars[getFileNameEnv(dynamicJsonFile)] = input(f"Enter FileId of '{dynamicJsonFile}': ")
         ariaDl(dynamicJsonFile)
-        envVarDict = {**envVarDict, **jsonFileLoad(dynamicJsonFile)}
+        envVars = {**envVars, **jsonFileLoad(dynamicJsonFile)}
         ariaDl(fileidJsonFile)
-        envVarDict = {**envVarDict, **jsonFileLoad(fileidJsonFile)}
-        for file in configSyncList:
-            if getFileNameEnv(file) in envVarDict.keys():
-                ariaDl(file)
+        envVars = {**envVars, **jsonFileLoad(fileidJsonFile)}
+        for configFile in configFiles:
+            if getFileNameEnv(configFile) in envVars.keys():
+                ariaDl(configFile)
         if input('Make Necessary Changes to the Config Files in this Directory.\nContinue? (y/n): ').lower() != 'y':
             exit(1)
     else:
-        envVarDict['configFolderId'] = input('Enter Google Drive Parent Folder ID: ')
+        envVars['configFolderId'] = input('Enter Google Drive Parent Folder ID: ')
     if os.path.exists(saJsonFile):
         useSaAuth = True
-        for file in [credsJsonFile, tokenJsonFile]:
-            configSyncList.remove(file)
+        for configFile in [credsJsonFile, tokenJsonFile]:
+            configFiles.remove(configFile)
         oauthCreds = google.oauth2.service_account.Credentials.from_service_account_file(saJsonFile)
     else:
         useSaAuth = False
-        configSyncList.remove(saJsonFile)
+        configFiles.remove(saJsonFile)
         if os.path.exists(tokenJsonFile):
             oauthCreds = google.oauth2.credentials.Credentials.from_authorized_user_file(tokenJsonFile, oauthScopes)
     syncHandler()
     if input('Do You Want to Delete the Local Config Files? (y/n): ').lower() == 'y':
-        for file in [*configSyncList, fileidJsonFile, dynamicJsonFile]:
-            os.remove(file)
+        for configFile in [*configFiles, fileidJsonFile, dynamicJsonFile]:
+            os.remove(configFile)
 else:
     authorizeGoogleDriveApi()
 print('Setup Completed !')
