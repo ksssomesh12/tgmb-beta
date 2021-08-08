@@ -18,13 +18,34 @@ RUN git clone --recursive https://github.com/tdlib/telegram-bot-api.git && cd te
     cmake --build . --target install -- -j $(nproc) && cd .. && \
     ls -l bin/telegram-bot-api*
 
+FROM ubuntu:latest as mega
+ENV DEBIAN_FRONTEND='noninteractive'
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y autoconf automake gcc g++ git libtool make python3 python3-dev python3-distutils python3-pip && \
+    apt-get install -y libc-ares-dev libcrypto++-dev libcurl4-openssl-dev libfreeimage-dev libsodium-dev && \
+    apt-get install -y libsqlite3-dev libssl-dev swig zlib1g-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+WORKDIR /root
+ENV MEGA_SDK_VERSION='3.9.2'
+RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
+    git checkout v$MEGA_SDK_VERSION && \
+    ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
+    make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel
+
 FROM ghcr.io/ksssomesh12/tgmb-beta:base as app-base
 FROM ghcr.io/ksssomesh12/tgmb-beta:api as app-api
+FROM ghcr.io/ksssomesh12/tgmb-beta:mega as app-mega
 
 FROM scratch as app
 COPY --from=app-base / /
 COPY --from=app-api /root/telegram-bot-api/bin/telegram-bot-api /usr/bin/telegram-bot-api
+COPY --from=app-mega /root/mega-sdk /root/mega-sdk
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
+ENV DEBIAN_FRONTEND='noninteractive'
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y libcrypto++-dev libfreeimage-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --no-cache-dir /root/mega-sdk/bindings/python/dist/megasdk-*.whl
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
 COPY requirements.txt .

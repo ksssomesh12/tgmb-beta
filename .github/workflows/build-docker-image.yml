@@ -85,9 +85,50 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
-  build-final-image:
+  build-mega-image:
     runs-on: ubuntu-latest
-    needs: [build-base-image, build-api-image]
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ksssomesh12
+          password: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      - name: Setup Docker Buildx
+        id: setup_buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Cache Docker Layers
+        id: cache_docker_layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-tgmb-mega-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-buildx-tgmb-mega-
+
+      - name: Build-Push Docker Image
+        id: docker_build_push
+        uses: docker/build-push-action@v2
+        with:
+          builder: ${{ steps.setup_buildx.outputs.name }}
+          target: mega
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+          push: true
+          tags: ghcr.io/ksssomesh12/tgmb-beta:mega
+
+      - name: Docker Image Digest
+        run: echo ${{ steps.docker_build_push.outputs.digest }}
+
+      - name: Move Docker Layer Cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  build-app-image:
+    runs-on: ubuntu-latest
+    needs: [build-base-image, build-api-image, build-mega-image]
     steps:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
