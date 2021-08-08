@@ -1354,7 +1354,7 @@ if os.path.exists(logFiles[0]):
 
 logger = loguru.logger
 logger.remove()
-logger.add(sys.stderr, level='INFO', format=logInfoFormat)
+logger.add(sys.stderr, level='DEBUG', format=logDebugFormat)
 logger.add(logFiles[0], level='DEBUG', format=logDebugFormat, rotation='24h')
 logger.disable('apscheduler')
 
