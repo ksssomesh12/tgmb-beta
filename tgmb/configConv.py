@@ -151,7 +151,7 @@ def stageSix(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
 
 
 FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH = range(6)
-configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
+configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]]
 configVarsNew: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
 tempKey: str
 tempVal: str

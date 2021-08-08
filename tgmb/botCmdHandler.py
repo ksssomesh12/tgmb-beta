@@ -80,24 +80,24 @@ def deleteCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    authorizeId, authorizeName = getChatUserId(update)
-    if str(authorizeId) in envVars[list(optConfigVars.keys())[0]].keys():
-        replyTxt = f"Already Authorized Chat / User: '{authorizeName}' - ({authorizeId}) !"
+    chatId, chatName, chatType = getChatDetails(update)
+    if str(chatId) in envVars[list(optConfigVars.keys())[0]].keys():
+        replyTxt = f"Already Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     else:
-        updateAuthorizedChatsDict(authorizeId, authorizeName, auth=True)
-        replyTxt = f"Authorized Chat / User: '{authorizeName}' - ({authorizeId}) !"
+        updateAuthorizedChatsDict(chatId, chatName, chatType, auth=True)
+        replyTxt = f"Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     logger.info(replyTxt)
     bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                     reply_to_message_id=update.message.message_id)
 
 
 def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    unauthorizeId, unauthorizeName = getChatUserId(update)
-    if str(unauthorizeId) in envVars[list(optConfigVars.keys())[0]].keys():
-        updateAuthorizedChatsDict(unauthorizeId, unauthorizeName, unauth=True)
-        replyTxt = f"Unauthorized Chat / User: '{unauthorizeName}' - ({unauthorizeId}) !"
+    chatId, chatName, chatType = getChatDetails(update)
+    if str(chatId) in envVars[list(optConfigVars.keys())[0]].keys():
+        updateAuthorizedChatsDict(chatId, chatName, chatType, unauth=True)
+        replyTxt = f"Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     else:
-        replyTxt = f"Already Unauthorized Chat / User: '{unauthorizeName}' - ({unauthorizeId}) !"
+        replyTxt = f"Already Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     logger.info(replyTxt)
     bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                     reply_to_message_id=update.message.message_id)

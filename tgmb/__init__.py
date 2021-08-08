@@ -109,16 +109,16 @@ class MirrorListener:
         self.webhookServer: WebhookServer
         self.downloadQueueSize: int = 3
         self.downloadQueueActive: int = 0
-        self.downloadQueue: list[str] = []
+        self.downloadQueue: typing.List[str] = []
         self.compressionQueueSize: int = 1
         self.compressionQueueActive: int = 0
-        self.compressionQueue: list[str] = []
+        self.compressionQueue: typing.List[str] = []
         self.decompressionQueueSize: int = 1
         self.decompressionQueueActive: int = 0
-        self.decompressionQueue: list[str] = []
+        self.decompressionQueue: typing.List[str] = []
         self.uploadQueueSize: int = 3
         self.uploadQueueActive: int = 0
-        self.uploadQueue: list[str] = []
+        self.uploadQueue: typing.List[str] = []
         self.statusCallBacks: typing.Dict[str, typing.Callable] \
             = {MirrorStatus.addMirror: self.onAddMirror,
                MirrorStatus.cancelMirror: self.onCancelMirror,
@@ -146,7 +146,7 @@ class MirrorListener:
 
     def startWebhookServer(self, ready=None, forceEventLoop=False):
         self.webhookServer = WebhookServer(self.mirrorHelper)
-        initThread(target=self.webhookServer.serveForever, name='mirrorListener.webhookServer',
+        threadInit(target=self.webhookServer.serveForever, name='mirrorListener.webhookServer',
                    forceEventLoop=forceEventLoop, ready=ready)
 
     def stopWebhookServer(self):
@@ -194,19 +194,19 @@ class MirrorListener:
     def onDownloadStart(self, mirrorInfo: MirrorInfo):
         os.mkdir(mirrorInfo.path)
         if mirrorInfo.isAriaDownload:
-            initThread(target=self.mirrorHelper.ariaHelper.addDownload,
+            threadInit(target=self.mirrorHelper.ariaHelper.addDownload,
                        name=f'{mirrorInfo.uid}-AriaDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isGoogleDriveDownload:
-            initThread(target=self.mirrorHelper.googleDriveHelper.addDownload,
+            threadInit(target=self.mirrorHelper.googleDriveHelper.addDownload,
                        name=f'{mirrorInfo.uid}-GoogleDriveDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isMegaDownload:
-            initThread(target=self.mirrorHelper.megaHelper.addDownload,
+            threadInit(target=self.mirrorHelper.megaHelper.addDownload,
                        name=f'{mirrorInfo.uid}-MegaDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isTelegramDownload:
-            initThread(target=self.mirrorHelper.telegramHelper.addDownload,
+            threadInit(target=self.mirrorHelper.telegramHelper.addDownload,
                        name=f'{mirrorInfo.uid}-TelegramDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isYouTubeDownload:
-            initThread(target=self.mirrorHelper.youTubeHelper.addDownload,
+            threadInit(target=self.mirrorHelper.youTubeHelper.addDownload,
                        name=f'{mirrorInfo.uid}-YouTubeDownload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.downloadProgress)
 
@@ -242,7 +242,7 @@ class MirrorListener:
             self.checkCompressionQueue()
 
     def onCompressionStart(self, mirrorInfo: MirrorInfo):
-        initThread(target=self.mirrorHelper.compressionHelper.addCompression,
+        threadInit(target=self.mirrorHelper.compressionHelper.addCompression,
                    name=f'{mirrorInfo.uid}-Compression', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.compressionProgress)
 
@@ -278,7 +278,7 @@ class MirrorListener:
             self.checkDecompressionQueue()
 
     def onDecompressionStart(self, mirrorInfo: MirrorInfo):
-        initThread(target=self.mirrorHelper.decompressionHelper.addDecompression,
+        threadInit(target=self.mirrorHelper.decompressionHelper.addDecompression,
                    name=f'{mirrorInfo.uid}-Decompression', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionProgress)
 
@@ -310,13 +310,13 @@ class MirrorListener:
 
     def onUploadStart(self, mirrorInfo: MirrorInfo):
         if mirrorInfo.isGoogleDriveUpload:
-            initThread(target=self.mirrorHelper.googleDriveHelper.addUpload,
+            threadInit(target=self.mirrorHelper.googleDriveHelper.addUpload,
                        name=f'{mirrorInfo.uid}-GoogleDriveUpload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isMegaUpload:
-            initThread(target=self.mirrorHelper.megaHelper.addUpload,
+            threadInit(target=self.mirrorHelper.megaHelper.addUpload,
                        name=f'{mirrorInfo.uid}-MegaUpload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isTelegramUpload:
-            initThread(target=self.mirrorHelper.telegramHelper.addUpload,
+            threadInit(target=self.mirrorHelper.telegramHelper.addUpload,
                        name=f'{mirrorInfo.uid}-TelegramUpload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.uploadProgress)
 
@@ -477,19 +477,20 @@ class AriaHelper:
                                          on_download_error=self.onDownloadError)
 
     def onDownloadStart(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadPause(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadComplete(self, _: aria2p.API, gid: str):
+        logger.debug(vars(self.getDlObj(gid)))
         self.mirrorHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadError(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
 
 class GoogleDriveHelper:
@@ -879,7 +880,7 @@ class StatusHelper:
                                                reply_to_message_id=self.msgId).message_id
         if self.isInitThread:
             self.isInitThread = False
-            initThread(target=self.updateStatusMsg, name='statusUpdater')
+            threadInit(target=self.updateStatusMsg, name='statusUpdater')
 
     def updateStatusMsg(self):
         if not self.isUpdateStatus:
@@ -994,7 +995,7 @@ class WebhookHandler(tornado.web.RequestHandler):
         data = json.loads(json_string)
         self.set_status(200)
         logger.debug(f'Webhook Received Data: {data}')
-        initThread(target=self.mirrorHelper.mirrorListener.updateStatusCallback,
+        threadInit(target=self.mirrorHelper.mirrorListener.updateStatusCallback,
                    name=f"{data['mirrorUid']}-{data['mirrorStatus']}", uid=data['mirrorUid'])
 
     def _validate_post(self) -> None:
@@ -1078,7 +1079,7 @@ class InterceptHandler(logging.Handler):
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
-def initThread(target: typing.Callable, name: str, *args: object, **kwargs: object) -> None:
+def threadInit(target: typing.Callable, name: str, *args: object, **kwargs: object) -> None:
     thread = threading.Thread(target=threadWrapper, name=name, args=(target,) + args, kwargs=kwargs, )
     thread.start()
 
@@ -1163,7 +1164,7 @@ def configHandler():
             if getFileNameEnv(configFile) in envVars.keys():
                 fileHashInDict = envVars[getFileNameEnv(configFile) + 'Hash']
                 if not (os.path.exists(configFile) and fileHashInDict == getFileHash(configFile)):
-                    initThread(target=ariaDl, name=f'{configFile}-ariaDl', fileName=configFile)
+                    threadInit(target=ariaDl, name=f'{configFile}-ariaDl', fileName=configFile)
         while runningThreads:
             time.sleep(0.1)
     else:
@@ -1193,14 +1194,13 @@ def fileBak(fileName: str):
         exit(1)
 
 
-def getChatUserId(update: telegram.Update):
+def getChatDetails(update: telegram.Update):
     if update.message.reply_to_message:
-        chatUserId = update.message.reply_to_message.from_user.id
-        chatUserName = update.message.reply_to_message.from_user.first_name
+        user = update.message.reply_to_message.from_user
+        return user.id, user.first_name, 'private'
     else:
-        chatUserId = update.effective_chat.id
-        chatUserName = update.effective_chat.first_name
-    return chatUserId, chatUserName
+        chat = update.effective_chat
+        return chat.id, (chat.first_name if chat.type == 'private' else chat.title), chat.type
 
 
 def getFileNameEnv(fileName: str):
@@ -1287,15 +1287,15 @@ def initBotApi():
     dispatcher = updater.dispatcher
 
 
-def updateAuthorizedChatsDict(chatUserId: int, chatUserName: str, auth: bool = None, unauth: bool = None):
+def updateAuthorizedChatsDict(chatId: int, chatName: str, chatType: str, auth: bool = None, unauth: bool = None):
     if auth:
-        envVars[list(optConfigVars.keys())[0]][str(chatUserId)] = chatUserName
+        envVars[list(optConfigVars.keys())[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
     if unauth:
-        envVars[list(optConfigVars.keys())[0]].pop(str(chatUserId))
+        envVars[list(optConfigVars.keys())[0]].pop(str(chatId))
     updateConfigJson({list(optConfigVars.keys())[0]: envVars[list(optConfigVars.keys())[0]]})
 
 
-def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]):
+def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]]):
     fileBak(configJsonFile)
     jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **updateDict})
     if envVars['dynamicConfig'] == 'true':
@@ -1336,9 +1336,10 @@ dynamicJsonFile = 'dynamic.json'
 fileidJsonFile = 'fileid.json'
 configFiles: [str] = [configJsonFile, configJsonBakFile, saJsonFile, tokenJsonFile]
 reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderIds']
-optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]] = \
+optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
     {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
-envVars: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]] = {'cwd': os.getcwd()}
+envVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
+    {'cwd': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
@@ -1354,7 +1355,7 @@ if os.path.exists(logFiles[0]):
 
 logger = loguru.logger
 logger.remove()
-logger.add(sys.stderr, level='INFO', format=logInfoFormat)
+logger.add(sys.stderr, level='DEBUG', format=logDebugFormat)
 logger.add(logFiles[0], level='DEBUG', format=logDebugFormat, rotation='24h')
 logger.disable('apscheduler')
 
