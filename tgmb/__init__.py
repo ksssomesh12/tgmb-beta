@@ -1193,14 +1193,13 @@ def fileBak(fileName: str):
         exit(1)
 
 
-def getChatUserId(update: telegram.Update):
+def getChatDetails(update: telegram.Update):
     if update.message.reply_to_message:
-        chatUserId = update.message.reply_to_message.from_user.id
-        chatUserName = update.message.reply_to_message.from_user.first_name
+        user = update.message.reply_to_message.from_user
+        return user.id, user.first_name, 'private'
     else:
-        chatUserId = update.effective_chat.id
-        chatUserName = update.effective_chat.first_name
-    return chatUserId, chatUserName
+        chat = update.effective_chat
+        return chat.id, (chat.first_name if chat.type == 'private' else chat.title), chat.type
 
 
 def getFileNameEnv(fileName: str):
@@ -1287,15 +1286,15 @@ def initBotApi():
     dispatcher = updater.dispatcher
 
 
-def updateAuthorizedChatsDict(chatUserId: int, chatUserName: str, auth: bool = None, unauth: bool = None):
+def updateAuthorizedChatsDict(chatId: int, chatName: str, chatType: str, auth: bool = None, unauth: bool = None):
     if auth:
-        envVars[list(optConfigVars.keys())[0]][str(chatUserId)] = chatUserName
+        envVars[list(optConfigVars.keys())[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
     if unauth:
-        envVars[list(optConfigVars.keys())[0]].pop(str(chatUserId))
+        envVars[list(optConfigVars.keys())[0]].pop(str(chatId))
     updateConfigJson({list(optConfigVars.keys())[0]: envVars[list(optConfigVars.keys())[0]]})
 
 
-def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]):
+def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]]):
     fileBak(configJsonFile)
     jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **updateDict})
     if envVars['dynamicConfig'] == 'true':
@@ -1336,9 +1335,10 @@ dynamicJsonFile = 'dynamic.json'
 fileidJsonFile = 'fileid.json'
 configFiles: [str] = [configJsonFile, configJsonBakFile, saJsonFile, tokenJsonFile]
 reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderIds']
-optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]] = \
+optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
     {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
-envVars: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]] = {'cwd': os.getcwd()}
+envVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
+    {'cwd': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
