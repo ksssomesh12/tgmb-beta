@@ -477,19 +477,20 @@ class AriaHelper:
                                          on_download_error=self.onDownloadError)
 
     def onDownloadStart(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadPause(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadComplete(self, _: aria2p.API, gid: str):
+        logger.debug(vars(self.getDlObj(gid)))
         self.mirrorHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadError(self, _: aria2p.API, gid: str):
-        dlObj = self.getDlObj(gid)
+        logger.debug(vars(self.getDlObj(gid)))
 
 
 class GoogleDriveHelper:
