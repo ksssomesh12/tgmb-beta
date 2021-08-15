@@ -145,6 +145,17 @@ oauthScopes: typing.List[str] = ['https://www.googleapis.com/auth/drive']
 envVars: typing.Dict[str, str] = {}
 isUpdateConfig = False
 
+if os.path.exists(saJsonFile):
+    useSaAuth = True
+    for configFile in [credsJsonFile, tokenJsonFile]:
+        configFiles.remove(configFile)
+    oauthCreds = google.oauth2.service_account.Credentials.from_service_account_file(saJsonFile)
+else:
+    useSaAuth = False
+    configFiles.remove(saJsonFile)
+    if os.path.exists(tokenJsonFile):
+        oauthCreds = google.oauth2.credentials.Credentials.from_authorized_user_file(tokenJsonFile, oauthScopes)
+
 if input('Do You Want to Use Dynamic Config? (y/n): ').lower() == 'y':
     if input('Do You Want to Update Existing Config? (y/n): ').lower() == 'y':
         isUpdateConfig = True
@@ -160,16 +171,6 @@ if input('Do You Want to Use Dynamic Config? (y/n): ').lower() == 'y':
             exit(1)
     else:
         envVars['configFolderId'] = input('Enter Google Drive Parent Folder ID: ')
-    if os.path.exists(saJsonFile):
-        useSaAuth = True
-        for configFile in [credsJsonFile, tokenJsonFile]:
-            configFiles.remove(configFile)
-        oauthCreds = google.oauth2.service_account.Credentials.from_service_account_file(saJsonFile)
-    else:
-        useSaAuth = False
-        configFiles.remove(saJsonFile)
-        if os.path.exists(tokenJsonFile):
-            oauthCreds = google.oauth2.credentials.Credentials.from_authorized_user_file(tokenJsonFile, oauthScopes)
     syncHandler()
     if input('Do You Want to Delete the Local Config Files? (y/n): ').lower() == 'y':
         for configFile in [*configFiles, fileidJsonFile, dynamicJsonFile]:
