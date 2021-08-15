@@ -559,7 +559,7 @@ class GoogleDriveHelper:
                     if envVars['dynamicConfig'] == 'true':
                         # build service for patching tokenJsonFile
                         self.buildService()
-                        logger.info(self.patchFile(f"{envVars['cwd']}/{tokenJsonFile}"))
+                        logger.info(self.patchFile(f"{envVars['currWorkDir']}/{tokenJsonFile}"))
                         updateFileidJson()
                         return
                 else:
@@ -1186,7 +1186,7 @@ def configHandler():
 def fileBak(fileName: str):
     fileBakName = fileName + '.bak'
     try:
-        shutil.copy(os.path.join(envVars['cwd'], fileName), os.path.join(envVars['cwd'], fileBakName))
+        shutil.copy(os.path.join(envVars['currWorkDir'], fileName), os.path.join(envVars['currWorkDir'], fileBakName))
         logger.info(f"Copied: '{fileName}' -> '{fileBakName}'")
     except FileNotFoundError:
         logger.error(FileNotFoundError)
@@ -1299,8 +1299,8 @@ def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[
     fileBak(configJsonFile)
     jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **updateDict})
     if envVars['dynamicConfig'] == 'true':
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['cwd']}/{configJsonFile}"))
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['cwd']}/{configJsonBakFile}"))
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonFile}"))
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonBakFile}"))
         updateFileidJson()
 
 
@@ -1310,11 +1310,11 @@ def updateFileidJson():
     for file in configFiles:
         fileNameEnv = getFileNameEnv(file)
         fileHashEnv = fileNameEnv + 'Hash'
-        envVars[fileHashEnv] = getFileHash(os.path.join(envVars['cwd'], file))
+        envVars[fileHashEnv] = getFileHash(os.path.join(envVars['currWorkDir'], file))
         fileidJsonDict[fileNameEnv] = envVars[fileNameEnv]
         fileidJsonDict[fileHashEnv] = envVars[fileHashEnv]
     jsonFileWrite(fileidJsonFile, fileidJsonDict)
-    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['cwd']}/{fileidJsonFile}"))
+    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{fileidJsonFile}"))
 
 
 # loguru default format
@@ -1339,7 +1339,7 @@ reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiH
 optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
     {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
 envVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
-    {'cwd': os.getcwd()}
+    {'currWorkDir': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
@@ -1369,7 +1369,7 @@ mirrorHelper = MirrorHelper()
 
 mirrorHelper.googleDriveHelper.authorizeApi()
 
-dlRootDirPath = os.path.join(envVars['cwd'], envVars[list(optConfigVars.keys())[2]])
+dlRootDirPath = os.path.join(envVars['currWorkDir'], envVars[list(optConfigVars.keys())[2]])
 
 if os.path.exists(dlRootDirPath):
     shutil.rmtree(dlRootDirPath)
