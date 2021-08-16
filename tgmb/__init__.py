@@ -882,6 +882,12 @@ class StatusHelper:
             self.isInitThread = False
             threadInit(target=self.updateStatusMsg, name='statusUpdater')
 
+    def getMirrorStatusStr(self, uid: str):
+        mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
+        mirrorStatusStr = f'{mirrorInfo.uid} | {mirrorInfo.status}\n' \
+                          f'{getReadableSize(mirrorInfo.totalSize)}\n'
+        return mirrorStatusStr
+
     def updateStatusMsg(self):
         if not self.isUpdateStatus:
             bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
@@ -895,9 +901,7 @@ class StatusHelper:
             if self.mirrorHelper.mirrorInfos != {}:
                 statusMsgTxt = ''
                 for uid in self.mirrorHelper.mirrorInfos.keys():
-                    mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
-                    statusMsgTxt += f'{mirrorInfo.uid} {mirrorInfo.status}\n' \
-                                    f'{getReadableSize(mirrorInfo.totalSize)}\n'
+                    statusMsgTxt += self.getMirrorStatusStr(uid)
                 if statusMsgTxt != self.lastStatusMsgTxt:
                     bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
                                         message_id=self.lastStatusMsgId)
