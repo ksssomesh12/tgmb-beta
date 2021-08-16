@@ -929,7 +929,8 @@ class StatusHelper:
                                    f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
                                    f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
                                    f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
-                                   f'{mirrorInfo.progressPercent}% \n' \
+                                   f'{mirrorInfo.progressPercent}% | ' \
+                                   f'{getReadableSize(mirrorInfo.speedCurrent / 8)}/s\n' \
                                    f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
                                    f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
                 if mirrorInfo.isTorrent:
