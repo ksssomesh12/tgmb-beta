@@ -50,7 +50,7 @@ def stageOne(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query = update.callback_query
     query.answer()
     if query.data == '1':
-        logger.info(f"addMirror - ['{mirrorInfo.url}']")
+        logger.info(f"addMirror - ['{mirrorInfo.downloadUrl}']")
         mirrorHelper.addMirror(mirrorInfo)
         query.edit_message_text(text='addMirror Succeeded !')
         return telegram.ext.ConversationHandler.END
@@ -105,7 +105,7 @@ def stageFive(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query = update.callback_query
     query.answer()
     if query.data == '1':
-        logger.info(f"addMirror - ['{mirrorInfo.url}']")
+        logger.info(f"addMirror - ['{mirrorInfo.downloadUrl}']")
         mirrorHelper.addMirror(mirrorInfo)
         query.edit_message_text(text='addMirror Succeeded !')
     elif query.data == '2':

@@ -41,6 +41,9 @@ import youtube_dl
 
 
 class MirrorInfo:
+    updatableVars: typing.List[str] = ['sizeTotal', 'sizeCurrent', 'speedCurrent', 'timeCurrent',
+                                       'isTorrent', 'numSeeders', 'numLeechers']
+
     def __init__(self, msg: telegram.Message):
         self.msg = msg
         self.msgId = msg.message_id
@@ -48,11 +51,18 @@ class MirrorInfo:
         self.uid: str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
         self.path: str = f'{dlRootDirPath}/{self.uid}'
         self.status: str = ''
-        self.url: str = ''
+        self.downloadUrl: str = ''
         self.tag: str = ''
-        self.eta: float = 0
-        self.progress: float = 0
-        self.totalSize: int = 0
+        self.timeStart: int = 0
+        self.timeCurrent: int = 0
+        self.timeEnd: int = 0
+        self.speedCurrent: int = 0
+        self.sizeTotal: int = 0
+        self.sizeCurrent: int = 0
+        self.progressPercent: float = 0.0
+        self.isTorrent: bool = False
+        self.numSeeders: int = 0
+        self.numLeechers: int = 0
         self.googleDriveDownloadSourceId: str = ''
         self.uploadUrl: str = ''
         self.googleDriveUploadFolderId: str = ''
@@ -68,6 +78,23 @@ class MirrorInfo:
         self.isTelegramUpload: bool = False
         self.isCompress: bool = False
         self.isDecompress: bool = False
+
+    def updateVars(self, currVars: typing.Dict[str, typing.Union[int, float, str]]):
+        currVarsKeys = list(currVars.keys())
+        if self.updatableVars[0] in currVarsKeys:
+            self.sizeTotal = currVars[self.updatableVars[0]]
+        if self.updatableVars[1] in currVarsKeys and self.updatableVars[2] in currVarsKeys:
+            self.sizeCurrent = currVars[self.updatableVars[1]]
+            self.speedCurrent = currVars[self.updatableVars[2]]
+            self.timeCurrent = currVars[self.updatableVars[3]]
+            if self.sizeTotal != 0:
+                self.progressPercent = round(((self.sizeCurrent / self.sizeTotal) * 100), ndigits=2)
+            if self.speedCurrent != 0:
+                self.timeEnd = self.timeCurrent + int((self.sizeTotal - self.sizeCurrent) / self.speedCurrent)
+        if self.updatableVars[4] in currVarsKeys:
+            self.isTorrent = True
+            self.numSeeders = currVars[self.updatableVars[5]]
+            self.numLeechers = currVars[self.updatableVars[6]]
 
 
 class UrlRegex:
@@ -336,8 +363,8 @@ class MirrorListener:
         self.checkUploadQueue()
 
     def resetMirrorProgress(self, uid: str):
-        self.mirrorHelper.mirrorInfos[uid].eta = 0
-        self.mirrorHelper.mirrorInfos[uid].progress = 0
+        self.mirrorHelper.mirrorInfos[uid].timeEnd = 0
+        self.mirrorHelper.mirrorInfos[uid].progressPercent = 0
 
 
 class MirrorHelper:
@@ -356,6 +383,7 @@ class MirrorHelper:
     def addMirror(self, mirrorInfo: MirrorInfo):
         logger.debug(vars(mirrorInfo))
         self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
+        self.mirrorInfos[mirrorInfo.uid].timeStart = int(time.time())
         self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
         self.statusHelper.addStatus(mirrorInfo.chatId, mirrorInfo.msgId)
 
@@ -395,17 +423,17 @@ class MirrorHelper:
         mirrorInfo: MirrorInfo = MirrorInfo(msg)
         isValidDl: bool = True
         try:
-            mirrorInfo.url = msg.text.split(' ')[1].strip()
+            mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
             mirrorInfo.tag = msg.from_user.username
-            mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.url)
+            mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.downloadUrl)
             if mirrorInfo.googleDriveDownloadSourceId != '':
                 mirrorInfo.isGoogleDriveDownload = True
-            elif re.findall(UrlRegex.youTube, mirrorInfo.url):
+            elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
                 mirrorInfo.isYouTubeDownload = True
-            elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.url):
+            elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
                 mirrorInfo.isMagnet = True
                 mirrorInfo.isAriaDownload = True
-            elif re.findall(UrlRegex.generalUrl, mirrorInfo.url):
+            elif re.findall(UrlRegex.generalUrl, mirrorInfo.downloadUrl):
                 mirrorInfo.isUrl = True
                 mirrorInfo.isAriaDownload = True
             else:
@@ -418,7 +446,7 @@ class MirrorHelper:
                     if media:
                         if media.mime_type == 'application/x-bittorrent':
                             mirrorInfo.isAriaDownload = True
-                            mirrorInfo.url = media.get_file().file_path
+                            mirrorInfo.downloadUrl = media.get_file().file_path
                         else:
                             mirrorInfo.isTelegramDownload = True
                         break
@@ -444,17 +472,9 @@ class AriaHelper:
 
     def addDownload(self, mirrorInfo: MirrorInfo):
         if mirrorInfo.isMagnet:
-            self.ariaGids[mirrorInfo.uid] = self.api.add_magnet(mirrorInfo.url, options={'dir': mirrorInfo.path}).gid
+            self.ariaGids[mirrorInfo.uid] = self.api.add_magnet(mirrorInfo.downloadUrl, options={'dir': mirrorInfo.path}).gid
         if mirrorInfo.isUrl:
-            self.ariaGids[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.url], options={'dir': mirrorInfo.path}).gid
-        gid = self.ariaGids[mirrorInfo.uid]
-        # TODO: check if download errored out in aria2c, with status and skip updating mirrorInfo.totalSize
-        while gid in self.ariaGids.values():
-            totalSize = self.getDlObj(gid).total_length
-            if totalSize != 0:
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].totalSize = totalSize
-                break
-            time.sleep(0.5)
+            self.ariaGids[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.downloadUrl], options={'dir': mirrorInfo.path}).gid
 
     def cancelDownload(self, uid: str):
         self.getDlObj(self.ariaGids[uid]).remove(force=True, files=True)
@@ -476,6 +496,20 @@ class AriaHelper:
                                          on_download_stop=self.onDownloadStop,
                                          on_download_error=self.onDownloadError)
 
+    def updateProgress(self, uid: str):
+        if uid in self.ariaGids.keys():
+            dlObj = self.getDlObj(self.ariaGids[uid])
+            currVars: typing.Dict[str, typing.Union[int, float, str]] \
+                = {MirrorInfo.updatableVars[0]: dlObj.total_length,
+                   MirrorInfo.updatableVars[1]: dlObj.completed_length,
+                   MirrorInfo.updatableVars[2]: dlObj.download_speed,
+                   MirrorInfo.updatableVars[3]: int(time.time())}
+            if dlObj.is_torrent:
+                currVars[MirrorInfo.updatableVars[4]] = True
+                currVars[MirrorInfo.updatableVars[5]] = dlObj.num_seeders
+                currVars[MirrorInfo.updatableVars[6]] = dlObj.connections
+            self.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
+
     def onDownloadStart(self, _: aria2p.API, gid: str):
         logger.debug(vars(self.getDlObj(gid)))
 
@@ -484,6 +518,9 @@ class AriaHelper:
 
     def onDownloadComplete(self, _: aria2p.API, gid: str):
         logger.debug(vars(self.getDlObj(gid)))
+        if self.getDlObj(gid).followed_by_ids:
+            self.ariaGids[self.getUid(gid)] = self.getDlObj(gid).followed_by_ids[0]
+            return
         self.mirrorHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str):
@@ -511,7 +548,7 @@ class GoogleDriveHelper:
 
     def addDownload(self, mirrorInfo: MirrorInfo):
         sourceId = mirrorInfo.googleDriveDownloadSourceId
-        self.mirrorHelper.mirrorInfos[mirrorInfo.uid].totalSize = self.getSizeById(sourceId)
+        self.mirrorHelper.mirrorInfos[mirrorInfo.uid].sizeTotal = self.getSizeById(sourceId)
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
@@ -559,7 +596,7 @@ class GoogleDriveHelper:
                     if envVars['dynamicConfig'] == 'true':
                         # build service for patching tokenJsonFile
                         self.buildService()
-                        logger.info(self.patchFile(f"{envVars['cwd']}/{tokenJsonFile}"))
+                        logger.info(self.patchFile(f"{envVars['currWorkDir']}/{tokenJsonFile}"))
                         updateFileidJson()
                         return
                 else:
@@ -726,7 +763,7 @@ class TelegramHelper:
         replyTo = mirrorInfo.msg.reply_to_message
         for media in [replyTo.document, replyTo.audio, replyTo.video]:
             if media:
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].totalSize = media.file_size
+                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].sizeTotal = media.file_size
                 self.downloadMedia(media, mirrorInfo.path)
                 break
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
@@ -790,7 +827,7 @@ class YouTubeHelper:
     def addDownload(self, mirrorInfo: MirrorInfo):
         ytdlOpts: dict = {'format': 'best/bestvideo+bestaudio', 'logger': logger,
                           'outtmpl': f'{mirrorInfo.path}/%(title)s-%(id)s.f%(format_id)s.%(ext)s'}
-        self.downloadVideo(mirrorInfo.url, ytdlOpts)
+        self.downloadVideo(mirrorInfo.downloadUrl, ytdlOpts)
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str):
@@ -882,6 +919,24 @@ class StatusHelper:
             self.isInitThread = False
             threadInit(target=self.updateStatusMsg, name='statusUpdater')
 
+    def getMirrorStatusStr(self, uid: str):
+        mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
+        mirrorStatusStr = f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
+        if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
+            if mirrorInfo.uid in self.mirrorHelper.ariaHelper.ariaGids.keys():
+                self.mirrorHelper.ariaHelper.updateProgress(mirrorInfo.uid)
+                mirrorStatusStr += f'S: {getReadableSize(mirrorInfo.sizeCurrent)} | ' \
+                                   f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
+                                   f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
+                                   f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
+                                   f'{mirrorInfo.progressPercent}% | ' \
+                                   f'{getReadableSize(mirrorInfo.speedCurrent / 8)}/s\n' \
+                                   f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
+                                   f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
+                if mirrorInfo.isTorrent:
+                    mirrorStatusStr += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
+        return mirrorStatusStr
+
     def updateStatusMsg(self):
         if not self.isUpdateStatus:
             bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
@@ -895,9 +950,7 @@ class StatusHelper:
             if self.mirrorHelper.mirrorInfos != {}:
                 statusMsgTxt = ''
                 for uid in self.mirrorHelper.mirrorInfos.keys():
-                    mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
-                    statusMsgTxt += f'{mirrorInfo.uid} {mirrorInfo.status}\n' \
-                                    f'{getReadableSize(mirrorInfo.totalSize)}\n'
+                    statusMsgTxt += self.getMirrorStatusStr(uid)
                 if statusMsgTxt != self.lastStatusMsgTxt:
                     bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
                                         message_id=self.lastStatusMsgId)
@@ -1186,7 +1239,7 @@ def configHandler():
 def fileBak(fileName: str):
     fileBakName = fileName + '.bak'
     try:
-        shutil.copy(os.path.join(envVars['cwd'], fileName), os.path.join(envVars['cwd'], fileBakName))
+        shutil.copy(os.path.join(envVars['currWorkDir'], fileName), os.path.join(envVars['currWorkDir'], fileBakName))
         logger.info(f"Copied: '{fileName}' -> '{fileBakName}'")
     except FileNotFoundError:
         logger.error(FileNotFoundError)
@@ -1223,6 +1276,14 @@ def getFileHash(filePath: str):
     return hashSum.hexdigest()
 
 
+def getProgressBar(progress: float):
+    progressRounded = round(progress)
+    numFull = progressRounded // 8
+    numEmpty = (100 // 8) - numFull
+    partIndex = (progressRounded % 8) - 1
+    return f"{progressUnits[-1] * numFull}{(progressUnits[partIndex] if partIndex >= 0 else '')}{' ' * numEmpty}"
+
+
 # TODO: typecheck numBytes
 def getReadableSize(numBytes: float):
     global sizeUnits
@@ -1233,7 +1294,7 @@ def getReadableSize(numBytes: float):
             i += 1
     else:
         numBytes = 0
-    return f'{round(numBytes, 2)}{sizeUnits[i]}'
+    return f'{round(numBytes, 2)} {sizeUnits[i]}'
 
 
 def getReadableTime(seconds: float):
@@ -1299,8 +1360,8 @@ def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[
     fileBak(configJsonFile)
     jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **updateDict})
     if envVars['dynamicConfig'] == 'true':
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['cwd']}/{configJsonFile}"))
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['cwd']}/{configJsonBakFile}"))
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonFile}"))
+        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonBakFile}"))
         updateFileidJson()
 
 
@@ -1310,11 +1371,11 @@ def updateFileidJson():
     for file in configFiles:
         fileNameEnv = getFileNameEnv(file)
         fileHashEnv = fileNameEnv + 'Hash'
-        envVars[fileHashEnv] = getFileHash(os.path.join(envVars['cwd'], file))
+        envVars[fileHashEnv] = getFileHash(os.path.join(envVars['currWorkDir'], file))
         fileidJsonDict[fileNameEnv] = envVars[fileNameEnv]
         fileidJsonDict[fileHashEnv] = envVars[fileHashEnv]
     jsonFileWrite(fileidJsonFile, fileidJsonDict)
-    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['cwd']}/{fileidJsonFile}"))
+    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{fileidJsonFile}"))
 
 
 # loguru default format
@@ -1339,12 +1400,13 @@ reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiH
 optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
     {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
 envVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
-    {'cwd': os.getcwd()}
+    {'currWorkDir': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
 sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+progressUnits: typing.List[str] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█']
 archiveFormats: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
                                          'gztar': '.tar.gz', 'xztar': '.tar.xz'}
 
@@ -1369,7 +1431,7 @@ mirrorHelper = MirrorHelper()
 
 mirrorHelper.googleDriveHelper.authorizeApi()
 
-dlRootDirPath = os.path.join(envVars['cwd'], envVars[list(optConfigVars.keys())[2]])
+dlRootDirPath = os.path.join(envVars['currWorkDir'], envVars[list(optConfigVars.keys())[2]])
 
 if os.path.exists(dlRootDirPath):
     shutil.rmtree(dlRootDirPath)
