@@ -928,7 +928,8 @@ class StatusHelper:
                 mirrorStatusStr += f'S: {getReadableSize(mirrorInfo.sizeCurrent)} | ' \
                                    f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
                                    f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
-                                   f'P: {mirrorInfo.progressPercent}% \n' \
+                                   f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
+                                   f'{mirrorInfo.progressPercent}% \n' \
                                    f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
                                    f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
                 if mirrorInfo.isTorrent:
@@ -1274,6 +1275,14 @@ def getFileHash(filePath: str):
     return hashSum.hexdigest()
 
 
+def getProgressBar(progress: float):
+    progressRounded = round(progress)
+    numFull = progressRounded // 8
+    numEmpty = (100 // 8) - numFull
+    partIndex = (progressRounded % 8) - 1
+    return f"{progressUnits[-1] * numFull}{(progressUnits[partIndex] if partIndex >= 0 else '')}{' ' * numEmpty}"
+
+
 # TODO: typecheck numBytes
 def getReadableSize(numBytes: float):
     global sizeUnits
@@ -1396,6 +1405,7 @@ logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: 
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
 sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+progressUnits: typing.List[str] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█']
 archiveFormats: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
                                          'gztar': '.tar.gz', 'xztar': '.tar.xz'}
 
