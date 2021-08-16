@@ -518,6 +518,9 @@ class AriaHelper:
 
     def onDownloadComplete(self, _: aria2p.API, gid: str):
         logger.debug(vars(self.getDlObj(gid)))
+        if self.getDlObj(gid).followed_by_ids:
+            self.ariaGids[self.getUid(gid)] = self.getDlObj(gid).followed_by_ids[0]
+            return
         self.mirrorHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str):
