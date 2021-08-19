@@ -136,8 +136,9 @@ def topCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 def unknownCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    bot.sendMessage(text='Sorry, the command is not registered with a CommandHandler !', parse_mode='HTML',
-                    chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+    if not '@' in update.message.text.split(' ')[0]:
+        bot.sendMessage(text='Sorry, the command is not registered with a CommandHandler !', parse_mode='HTML',
+                        chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
 def addHandlers(dispatcher: telegram.ext.Dispatcher):
