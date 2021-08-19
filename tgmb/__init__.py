@@ -548,7 +548,8 @@ class GoogleDriveHelper:
 
     def addDownload(self, mirrorInfo: MirrorInfo):
         sourceId = mirrorInfo.googleDriveDownloadSourceId
-        self.mirrorHelper.mirrorInfos[mirrorInfo.uid].sizeTotal = self.getSizeById(sourceId)
+        self.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]:
+                                                                      self.getSizeById(sourceId)})
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
@@ -763,7 +764,7 @@ class TelegramHelper:
         replyTo = mirrorInfo.msg.reply_to_message
         for media in [replyTo.document, replyTo.audio, replyTo.video]:
             if media:
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].sizeTotal = media.file_size
+                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: media.file_size})
                 self.downloadMedia(media, mirrorInfo.path)
                 break
         self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
