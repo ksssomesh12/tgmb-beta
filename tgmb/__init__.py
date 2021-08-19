@@ -920,23 +920,25 @@ class StatusHelper:
             self.isInitThread = False
             threadInit(target=self.updateStatusMsg, name='statusUpdater')
 
-    def getMirrorStatusStr(self, uid: str):
-        mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
-        mirrorStatusStr = f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
-        if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
-            if mirrorInfo.uid in self.mirrorHelper.ariaHelper.ariaGids.keys():
-                self.mirrorHelper.ariaHelper.updateProgress(mirrorInfo.uid)
-                mirrorStatusStr += f'S: {getReadableSize(mirrorInfo.sizeCurrent)} | ' \
-                                   f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
-                                   f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
-                                   f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
-                                   f'{mirrorInfo.progressPercent}% | ' \
-                                   f'{getReadableSize(mirrorInfo.speedCurrent)}/s\n' \
-                                   f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
-                                   f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
-                if mirrorInfo.isTorrent:
-                    mirrorStatusStr += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
-        return mirrorStatusStr
+    def getStatusMsgTxt(self):
+        statusMsgTxt = ''
+        for uid in self.mirrorHelper.mirrorInfos.keys():
+            mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
+            statusMsgTxt += f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
+            if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
+                if mirrorInfo.uid in self.mirrorHelper.ariaHelper.ariaGids.keys():
+                    self.mirrorHelper.ariaHelper.updateProgress(mirrorInfo.uid)
+                    statusMsgTxt += f'S: {getReadableSize(mirrorInfo.sizeCurrent)} | ' \
+                                    f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
+                                    f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
+                                    f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
+                                    f'{mirrorInfo.progressPercent}% | ' \
+                                    f'{getReadableSize(mirrorInfo.speedCurrent)}/s\n' \
+                                    f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
+                                    f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
+                    if mirrorInfo.isTorrent:
+                        statusMsgTxt += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
+        return statusMsgTxt
 
     def updateStatusMsg(self):
         if not self.isUpdateStatus:
@@ -949,9 +951,7 @@ class StatusHelper:
                 time.sleep(0.1)
                 continue
             if self.mirrorHelper.mirrorInfos != {}:
-                statusMsgTxt = ''
-                for uid in self.mirrorHelper.mirrorInfos.keys():
-                    statusMsgTxt += self.getMirrorStatusStr(uid)
+                statusMsgTxt = self.getStatusMsgTxt()
                 if statusMsgTxt != self.lastStatusMsgTxt:
                     bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
                                         message_id=self.lastStatusMsgId)
