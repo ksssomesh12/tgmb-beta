@@ -385,7 +385,8 @@ class MirrorHelper:
         self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
         self.mirrorInfos[mirrorInfo.uid].timeStart = int(time.time())
         self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
-        self.statusHelper.addStatus(mirrorInfo.chatId, mirrorInfo.msgId)
+        threadInit(target=self.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
+                   chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
 
     def cancelMirror(self, msg: telegram.Message):
         if self.mirrorInfos == {}:
@@ -894,6 +895,7 @@ class DecompressionHelper:
 class StatusHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
+        self.updaterLock = threading.Lock()
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
         self.statusUpdateInterval: int = int(envVars[list(optConfigVars.keys())[3]])
@@ -903,67 +905,65 @@ class StatusHelper:
         self.lastStatusMsgTxt: str = ''
 
     def addStatus(self, chatId: int, msgId: int):
-        if self.mirrorHelper.mirrorInfos != {}:
-            self.isUpdateStatus = True
-        else:
-            self.isUpdateStatus = False
-        if self.lastStatusMsgId == 0:
-            self.isInitThread = True
-        if self.lastStatusMsgId != 0:
-            bot.deleteMessage(chat_id=self.chatId, message_id=self.lastStatusMsgId)
-            self.lastStatusMsgId = -1
-        self.chatId = chatId
-        self.msgId = msgId
-        self.lastStatusMsgId = bot.sendMessage(text='...', parse_mode='HTML', chat_id=self.chatId,
-                                               reply_to_message_id=self.msgId).message_id
-        if self.isInitThread:
-            self.isInitThread = False
-            threadInit(target=self.updateStatusMsg, name='statusUpdater')
+        with self.updaterLock:
+            if self.mirrorHelper.mirrorInfos != {}:
+                self.isUpdateStatus = True
+            else:
+                self.isUpdateStatus = False
+            if self.lastStatusMsgId == 0:
+                self.isInitThread = True
+            if self.lastStatusMsgId != 0:
+                bot.deleteMessage(chat_id=self.chatId, message_id=self.lastStatusMsgId)
+            self.chatId = chatId
+            self.msgId = msgId
+            self.lastStatusMsgId = bot.sendMessage(text='...', parse_mode='HTML', chat_id=self.chatId,
+                                                   reply_to_message_id=self.msgId).message_id
+            if self.isInitThread:
+                self.isInitThread = False
+                threadInit(target=self.updateStatusMsg, name='statusUpdaterStart')
 
-    def getMirrorStatusStr(self, uid: str):
-        mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
-        mirrorStatusStr = f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
-        if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
-            if mirrorInfo.uid in self.mirrorHelper.ariaHelper.ariaGids.keys():
-                self.mirrorHelper.ariaHelper.updateProgress(mirrorInfo.uid)
-                mirrorStatusStr += f'S: {getReadableSize(mirrorInfo.sizeCurrent)} | ' \
-                                   f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
-                                   f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
-                                   f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
-                                   f'{mirrorInfo.progressPercent}% | ' \
-                                   f'{getReadableSize(mirrorInfo.speedCurrent)}/s\n' \
-                                   f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
-                                   f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
-                if mirrorInfo.isTorrent:
-                    mirrorStatusStr += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
-        return mirrorStatusStr
+    def getStatusMsgTxt(self):
+        statusMsgTxt = ''
+        for uid in self.mirrorHelper.mirrorInfos.keys():
+            mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
+            statusMsgTxt += f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
+            if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
+                if mirrorInfo.uid in self.mirrorHelper.ariaHelper.ariaGids.keys():
+                    self.mirrorHelper.ariaHelper.updateProgress(mirrorInfo.uid)
+                    statusMsgTxt += f'S: {getReadableSize(mirrorInfo.sizeCurrent)} | ' \
+                                    f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
+                                    f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
+                                    f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
+                                    f'{mirrorInfo.progressPercent}% | ' \
+                                    f'{getReadableSize(mirrorInfo.speedCurrent)}/s\n' \
+                                    f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
+                                    f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
+                    if mirrorInfo.isTorrent:
+                        statusMsgTxt += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
+        return statusMsgTxt
 
     def updateStatusMsg(self):
-        if not self.isUpdateStatus:
-            bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
-                                chat_id=self.chatId, message_id=self.lastStatusMsgId)
-            self.resetAllDat()
-            return
-        while self.isUpdateStatus:
-            if self.lastStatusMsgId == -1:
-                time.sleep(0.1)
-                continue
-            if self.mirrorHelper.mirrorInfos != {}:
-                statusMsgTxt = ''
-                for uid in self.mirrorHelper.mirrorInfos.keys():
-                    statusMsgTxt += self.getMirrorStatusStr(uid)
-                if statusMsgTxt != self.lastStatusMsgTxt:
-                    bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
-                                        message_id=self.lastStatusMsgId)
-                    self.lastStatusMsgTxt = statusMsgTxt
-                    time.sleep(self.statusUpdateInterval)
-                time.sleep(1)
-            if self.mirrorHelper.mirrorInfos == {}:
-                self.isUpdateStatus = False
-                self.updateStatusMsg()
+        with self.updaterLock:
+            if not self.isUpdateStatus:
+                bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
+                                    chat_id=self.chatId, message_id=self.lastStatusMsgId)
+                self.resetAllDat()
+                return
+            while self.isUpdateStatus:
+                if self.mirrorHelper.mirrorInfos != {}:
+                    statusMsgTxt = self.getStatusMsgTxt()
+                    if statusMsgTxt != self.lastStatusMsgTxt:
+                        bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
+                                            message_id=self.lastStatusMsgId)
+                        self.lastStatusMsgTxt = statusMsgTxt
+                        time.sleep(self.statusUpdateInterval)
+                    time.sleep(1)
+                if self.mirrorHelper.mirrorInfos == {}:
+                    self.isUpdateStatus = False
+                    threadInit(target=self.updateStatusMsg, name='statusUpdaterEnd')
 
     def resetAllDat(self):
-        self.isInitThread: bool = False
+        self.isInitThread = False
         self.isUpdateStatus = False
         self.msgId = 0
         self.chatId = 0

@@ -61,7 +61,8 @@ def logsCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 def statusCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    mirrorHelper.statusHelper.addStatus(update.message.chat.id, update.message.message_id)
+    threadInit(target=mirrorHelper.statusHelper.addStatus, name='statusCallBack-addStatus',
+               chatId=update.message.chat.id, msgId=update.message.message_id)
 
 
 def cancelCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
