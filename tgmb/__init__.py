@@ -385,7 +385,8 @@ class MirrorHelper:
         self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
         self.mirrorInfos[mirrorInfo.uid].timeStart = int(time.time())
         self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
-        self.statusHelper.addStatus(mirrorInfo.chatId, mirrorInfo.msgId)
+        threadInit(target=self.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
+                   chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
 
     def cancelMirror(self, msg: telegram.Message):
         if self.mirrorInfos == {}:
@@ -919,7 +920,7 @@ class StatusHelper:
                                                    reply_to_message_id=self.msgId).message_id
             if self.isInitThread:
                 self.isInitThread = False
-                threadInit(target=self.updateStatusMsg, name='statusUpdater')
+                threadInit(target=self.updateStatusMsg, name='statusUpdaterStart')
 
     def getStatusMsgTxt(self):
         statusMsgTxt = ''
@@ -959,7 +960,7 @@ class StatusHelper:
                     time.sleep(1)
                 if self.mirrorHelper.mirrorInfos == {}:
                     self.isUpdateStatus = False
-                    self.updateStatusMsg()
+                    threadInit(target=self.updateStatusMsg, name='statusUpdaterEnd')
 
     def resetAllDat(self):
         self.isInitThread = False
