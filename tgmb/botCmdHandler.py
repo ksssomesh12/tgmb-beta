@@ -134,7 +134,7 @@ def unknownCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
                         chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-def addHandlers(dispatcher: telegram.ext.Dispatcher):
+def addHandlers():
     startHandler = telegram.ext.CommandHandler(BotCommands.Start.command, startCallBack, run_async=True)
     dispatcher.add_handler(startHandler)
     helpHandler = telegram.ext.CommandHandler(BotCommands.Help.command, helpCallBack, run_async=True)
