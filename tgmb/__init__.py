@@ -534,19 +534,24 @@ class AriaHelper:
 class GoogleDriveHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
-        self.authTypes: typing.List[str] = ['saJson', 'tokenJson']
+        self.authInfos: typing.List[str] = ['saJson', 'tokenJson']
+        self.authTypes: typing.List[str] = ['saAuth', 'userAuth']
         self.oauthScopes: typing.List[str] = ['https://www.googleapis.com/auth/drive']
         self.baseFileDownloadUrl: str = 'https://drive.google.com/uc?id={}&export=download'
         self.baseFolderDownloadUrl: str = 'https://drive.google.com/drive/folders/{}'
         self.googleDriveFolderMimeType: str = 'application/vnd.google-apps.folder'
         self.chunkSize: int = 32 * 1024 * 1024
         self.service: typing.Any = None
-        if configVars[reqConfigVars[4]][self.authTypes[0]]:
+        if configVars[reqConfigVars[4]]['authType'] == self.authTypes[0] and \
+                configVars[reqConfigVars[4]]['authInfos'][self.authInfos[0]]:
             self.oauthCreds: google.oauth2.service_account.Credentials \
-                = google.oauth2.service_account.Credentials.from_service_account_info(configVars[reqConfigVars[4]][self.authTypes[0]])
-        elif configVars[reqConfigVars[4]][self.authTypes[1]]:
+                = google.oauth2.service_account.Credentials.\
+                from_service_account_info(configVars[reqConfigVars[4]]['authInfos'][self.authInfos[0]])
+        elif configVars[reqConfigVars[4]]['authType'] == self.authTypes[1] and \
+                configVars[reqConfigVars[4]]['authInfos'][self.authInfos[1]]:
             self.oauthCreds: google.oauth2.credentials.Credentials \
-                = google.oauth2.credentials.Credentials.from_authorized_user_info(configVars[reqConfigVars[4]][self.authTypes[1]], self.oauthScopes)
+                = google.oauth2.credentials.Credentials.\
+                from_authorized_user_info(configVars[reqConfigVars[4]]['authInfos'][self.authInfos[1]], self.oauthScopes)
         else:
             logger.error('No Valid googleDriveAuth in configJsonFile ! Exiting...')
             exit(1)
@@ -592,19 +597,19 @@ class GoogleDriveHelper:
         raise NotImplementedError
 
     def authorizeApi(self):
-        if not configVars[reqConfigVars[4]][self.authTypes[0]]:
+        if configVars[reqConfigVars[4]]['authType'] == self.authTypes[0]:
+            self.buildService()
+        if configVars[reqConfigVars[4]]['authType'] == self.authTypes[1]:
             if not self.oauthCreds.valid:
                 if self.oauthCreds.expired and self.oauthCreds.refresh_token:
                     self.oauthCreds.refresh(google.auth.transport.requests.Request())
                     logger.info('Google Drive API Token Refreshed !')
-                    configVars[reqConfigVars[4]][self.authTypes[1]] = json.loads(self.oauthCreds.to_json())
-                    if envVars['dynamicConfig']:
-                        self.buildService()
+                    configVars[reqConfigVars[4]]['authInfos'][self.authInfos[1]] = json.loads(self.oauthCreds.to_json())
+                    self.buildService()
                     updateConfigJson()
                 else:
                     logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
-        self.buildService()
 
     def buildService(self):
         self.service = googleapiclient.discovery.build(serviceName='drive', version='v3', credentials=self.oauthCreds,
@@ -1395,7 +1400,7 @@ dynamicJsonFile = 'dynamic.json'
 fileidJsonFile = 'fileid.json'
 configFiles: [str] = [configJsonFile, configJsonBakFile]
 envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
-configVars: typing.Dict[str, typing.Union[bool, str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]] = {}
+configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]]] = {}
 reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                         'googleDriveAuth', 'googleDriveUploadFolderIds']
 optConfigVars: typing.List[str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir', 'statusUpdateInterval']

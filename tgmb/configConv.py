@@ -153,7 +153,7 @@ def stageSix(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
 
 
 FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH = range(6)
-configVarsEditable: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]
+configVarsEditable: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]]]
 configVarsNew: typing.Dict[str, str]
 tempKey: str
 tempVal: str
