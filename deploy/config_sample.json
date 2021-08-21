@@ -4,9 +4,12 @@
   "telegramApiId": "",
   "telegramApiHash": "",
   "googleDriveAuth": {
-    "credsJson": {},
-    "saJson": {},
-    "tokenJson": {}
+    "authType": "",
+    "authInfos": {
+      "credsJson": {},
+      "saJson": {},
+      "tokenJson": {}
+    }
   },
   "googleDriveUploadFolderIds": {
     "#folderId-01": "#folderDescription-01",
