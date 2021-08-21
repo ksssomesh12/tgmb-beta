@@ -49,7 +49,7 @@ class MirrorInfo:
         self.msgId = msg.message_id
         self.chatId = msg.chat.id
         self.uid: str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        self.path: str = f'{dlRootDirPath}/{self.uid}'
+        self.path: str = f"{envVars['dlRootDirPath']}/{self.uid}"
         self.status: str = ''
         self.downloadUrl: str = ''
         self.tag: str = ''
@@ -1428,8 +1428,8 @@ initBotApi()
 
 mirrorHelper = MirrorHelper()
 
-dlRootDirPath = os.path.join(envVars['currWorkDir'], configVars[optConfigVars[2]])
+envVars['dlRootDirPath'] = os.path.join(envVars['currWorkDir'], configVars[optConfigVars[2]])
 
-if os.path.exists(dlRootDirPath):
-    shutil.rmtree(dlRootDirPath)
-os.mkdir(dlRootDirPath)
+if os.path.exists(envVars['dlRootDirPath']):
+    shutil.rmtree(envVars['dlRootDirPath'])
+os.mkdir(envVars['dlRootDirPath'])
