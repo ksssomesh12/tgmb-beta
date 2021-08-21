@@ -1081,8 +1081,8 @@ class BotCommands:
                                description='PingCommand')
     Restart = telegram.BotCommand(command='restart',
                                   description='RestartCommand')
-    Logs = telegram.BotCommand(command='logs',
-                               description='LogsCommand')
+    Log = telegram.BotCommand(command='log',
+                              description='LogCommand')
     Mirror = telegram.BotCommand(command='mirror',
                                  description='MirrorCommand')
     Status = telegram.BotCommand(command='status',

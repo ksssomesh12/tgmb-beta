@@ -1,5 +1,5 @@
 from . import *
-from . import configConv, subProc, mirrorConv
+from . import configConv, logConv, mirrorConv, subProc
 
 
 def startCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -14,7 +14,7 @@ def helpCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
                          f'/{BotCommands.Stats.command} {BotCommands.Stats.description}\n'
                          f'/{BotCommands.Ping.command} {BotCommands.Ping.description}\n'
                          f'/{BotCommands.Restart.command} {BotCommands.Restart.description}\n'
-                         f'/{BotCommands.Logs.command} {BotCommands.Logs.description}\n'
+                         f'/{BotCommands.Log.command} {BotCommands.Log.description}\n'
                          f'/{BotCommands.Mirror.command} {BotCommands.Mirror.description}\n'
                          f'/{BotCommands.Status.command} {BotCommands.Status.description}\n'
                          f'/{BotCommands.Cancel.command} {BotCommands.Cancel.description}\n'
@@ -50,14 +50,6 @@ def restartCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     subProc.term()
     time.sleep(5)
     os.execl(sys.executable, sys.executable, '-m', 'tgmb')
-
-
-def logsCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    bot.sendMediaGroup(media=[telegram.InputMediaDocument(logFiles[0]),
-                              telegram.InputMediaDocument(logFiles[1]),
-                              telegram.InputMediaDocument(logFiles[2])],
-                       chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
-    logger.info("Sent logFiles !")
 
 
 def statusCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -153,8 +145,6 @@ def addHandlers(dispatcher: telegram.ext.Dispatcher):
     dispatcher.add_handler(pingHandler)
     restartHandler = telegram.ext.CommandHandler(BotCommands.Restart.command, restartCallBack, run_async=True)
     dispatcher.add_handler(restartHandler)
-    logsHandler = telegram.ext.CommandHandler(BotCommands.Logs.command, logsCallBack, run_async=True)
-    dispatcher.add_handler(logsHandler)
     statusHandler = telegram.ext.CommandHandler(BotCommands.Status.command, statusCallBack, run_async=True)
     dispatcher.add_handler(statusHandler)
     cancelHandler = telegram.ext.CommandHandler(BotCommands.Cancel.command, cancelCallBack, run_async=True)
@@ -172,6 +162,7 @@ def addHandlers(dispatcher: telegram.ext.Dispatcher):
     topHandler = telegram.ext.CommandHandler(BotCommands.Top.command, topCallBack, run_async=True)
     dispatcher.add_handler(topHandler)
     dispatcher.add_handler(configConv.handler)
+    dispatcher.add_handler(logConv.handler)
     dispatcher.add_handler(mirrorConv.handler)
     unknownHandler = telegram.ext.MessageHandler(telegram.ext.Filters.command, unknownCallBack, run_async=True)
     dispatcher.add_handler(unknownHandler)
