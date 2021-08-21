@@ -534,18 +534,22 @@ class AriaHelper:
 class GoogleDriveHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
+        self.authTypes: typing.List[str] = ['saJson', 'tokenJson']
         self.oauthScopes: typing.List[str] = ['https://www.googleapis.com/auth/drive']
         self.baseFileDownloadUrl: str = 'https://drive.google.com/uc?id={}&export=download'
         self.baseFolderDownloadUrl: str = 'https://drive.google.com/drive/folders/{}'
         self.googleDriveFolderMimeType: str = 'application/vnd.google-apps.folder'
         self.chunkSize: int = 32 * 1024 * 1024
         self.service: typing.Any = None
-        if useSaAuth:
+        if envVars[reqConfigVars[4]][self.authTypes[0]]:
             self.oauthCreds: google.oauth2.service_account.Credentials \
-                = google.oauth2.service_account.Credentials.from_service_account_file(saJsonFile)
-        else:
+                = google.oauth2.service_account.Credentials.from_service_account_info(envVars[reqConfigVars[4]][self.authTypes[0]])
+        elif envVars[reqConfigVars[4]][self.authTypes[1]]:
             self.oauthCreds: google.oauth2.credentials.Credentials \
-                = google.oauth2.credentials.Credentials.from_authorized_user_file(tokenJsonFile, self.oauthScopes)
+                = google.oauth2.credentials.Credentials.from_authorized_user_info(envVars[reqConfigVars[4]][self.authTypes[1]], self.oauthScopes)
+        else:
+            logger.error('No Valid googleDriveAuth in configJsonFile ! Exiting...')
+            exit(1)
 
     def addDownload(self, mirrorInfo: MirrorInfo):
         sourceId = mirrorInfo.googleDriveDownloadSourceId
@@ -588,19 +592,15 @@ class GoogleDriveHelper:
         raise NotImplementedError
 
     def authorizeApi(self):
-        if not useSaAuth:
+        if envVars[reqConfigVars[4]][self.authTypes[1]]:
             if not self.oauthCreds.valid:
                 if self.oauthCreds.expired and self.oauthCreds.refresh_token:
                     self.oauthCreds.refresh(google.auth.transport.requests.Request())
                     logger.info('Google Drive API Token Refreshed !')
-                    with open(tokenJsonFile, 'w') as token:
-                        token.write(self.oauthCreds.to_json())
-                    if envVars['dynamicConfig'] == 'true':
-                        # build service for patching tokenJsonFile
+                    envVars[reqConfigVars[4]][self.authTypes[1]] = json.loads(self.oauthCreds.to_json())
+                    if envVars['dynamicConfig']:
                         self.buildService()
-                        logger.info(self.patchFile(f"{envVars['currWorkDir']}/{tokenJsonFile}"))
-                        updateFileidJson()
-                        return
+                    updateConfigJson({reqConfigVars[4]: envVars[reqConfigVars[4]]})
                 else:
                     logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
@@ -1204,9 +1204,9 @@ def checkRestart():
 
 
 def configHandler():
-    global configFiles, envVars, runningThreads, useSaAuth
+    global configFiles, envVars, runningThreads
     if os.path.exists(dynamicJsonFile):
-        envVars['dynamicConfig'] = 'true'
+        envVars['dynamicConfig'] = True
         logger.info('Using Dynamic Config...')
         envVars = {**envVars, **jsonFileLoad(dynamicJsonFile)}
         ariaDl(fileidJsonFile)
@@ -1215,22 +1215,15 @@ def configHandler():
             exit(1)
         envVars = {**envVars, **jsonFileLoad(fileidJsonFile)}
         for configFile in configFiles:
-            if getFileNameEnv(configFile) in envVars.keys():
-                fileHashInDict = envVars[getFileNameEnv(configFile) + 'Hash']
-                if not (os.path.exists(configFile) and fileHashInDict == getFileHash(configFile)):
-                    threadInit(target=ariaDl, name=f'{configFile}-ariaDl', fileName=configFile)
+            fileHashInDict = envVars[getFileNameEnv(configFile) + 'Hash']
+            if not (os.path.exists(configFile) and fileHashInDict == getFileHash(configFile)):
+                threadInit(target=ariaDl, name=f'{configFile}-ariaDl', fileName=configFile)
         while runningThreads:
             time.sleep(0.1)
     else:
-        envVars['dynamicConfig'] = 'false'
+        envVars['dynamicConfig'] = False
         logger.info('Using Static Config...')
         envVars['dlWaitTime'] = '5'
-    if os.path.exists(saJsonFile):
-        useSaAuth = True
-        configFiles.remove(tokenJsonFile)
-    else:
-        useSaAuth = False
-        configFiles.remove(saJsonFile)
     for configFile in configFiles:
         if not os.path.exists(configFile):
             logger.error(f"Config File Missing: '{configFile}' ! Exiting...")
@@ -1360,7 +1353,7 @@ def updateAuthorizedChatsDict(chatId: int, chatName: str, chatType: str, auth: b
 def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]]):
     fileBak(configJsonFile)
     jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **updateDict})
-    if envVars['dynamicConfig'] == 'true':
+    if envVars['dynamicConfig']:
         logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonFile}"))
         logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonBakFile}"))
         updateFileidJson()
@@ -1388,19 +1381,17 @@ botStartTime: float = time.time()
 bot: telegram.Bot
 dispatcher: telegram.ext.Dispatcher
 updater: telegram.ext.Updater
-useSaAuth: bool
 configJsonFile = 'config.json'
 configJsonBakFile = configJsonFile + '.bak'
 restartJsonFile = 'restart.json'
-saJsonFile = 'sa.json'
-tokenJsonFile = 'token.json'
 dynamicJsonFile = 'dynamic.json'
 fileidJsonFile = 'fileid.json'
-configFiles: [str] = [configJsonFile, configJsonBakFile, saJsonFile, tokenJsonFile]
-reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash', 'googleDriveUploadFolderIds']
+configFiles: [str] = [configJsonFile, configJsonBakFile]
+reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
+                        'googleDriveAuth', 'googleDriveUploadFolderIds']
 optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
     {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
-envVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
+envVars: typing.Dict[str, typing.Union[bool, str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]] = \
     {'currWorkDir': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'

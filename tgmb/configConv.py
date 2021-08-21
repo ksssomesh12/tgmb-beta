@@ -6,7 +6,7 @@ def loadConfigDict():
     configVars = {}
     configVarsNew = {}
     configVars = jsonFileLoad(configJsonFile)
-    for key in [reqConfigVars[4], list(optConfigVars.keys())[0]]:
+    for key in [reqConfigVars[4], reqConfigVars[5], list(optConfigVars.keys())[0]]:
         if key in list(configVars.keys()):
             configVars.pop(key)
 
@@ -151,8 +151,8 @@ def stageSix(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
 
 
 FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH = range(6)
-configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]]
-configVarsNew: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
+configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]
+configVarsNew: typing.Dict[str, str]
 tempKey: str
 tempVal: str
 newValMsg: telegram.Message

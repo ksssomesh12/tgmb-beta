@@ -106,7 +106,7 @@ def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext
 
 def syncCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     syncMsg: telegram.Message
-    if envVars['dynamicConfig'] == 'true':
+    if envVars['dynamicConfig']:
         syncMsgTxt = 'Syncing to Google Drive...'
         logger.info(syncMsgTxt)
         syncMsg = bot.sendMessage(text=syncMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
