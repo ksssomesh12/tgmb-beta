@@ -95,7 +95,7 @@ def convEnd(query: telegram.CallbackQuery) -> int:
 def stageZero(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     logger.info(f"Owner '{update.message.from_user.first_name}' is Editing '{configJsonFile}'...")
     loadConfigDict()
-    return chooseKey(update)
+    return chooseKey(update=update)
 
 
 def stageOne(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
@@ -110,7 +110,7 @@ def stageTwo(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     if query.data == '1':
         return editVal(query)
     if query.data == '2':
-        return chooseKey(query)
+        return chooseKey(query=query)
 
 
 def stageThree(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
@@ -128,7 +128,7 @@ def stageFour(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     if query.data == '1':
         return proceedNewVal(query)
     if query.data == '2':
-        return chooseKey(query)
+        return chooseKey(query=query)
 
 
 def stageFive(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
@@ -139,7 +139,7 @@ def stageFive(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     if query.data == '2':
         return discardChanges(query)
     if query.data == '3':
-        return chooseKey(query)
+        return chooseKey(query=query)
 
 
 def stageSix(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
@@ -147,7 +147,7 @@ def stageSix(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query.answer()
     if query.data == '1':
         loadConfigDict()
-        return chooseKey(query)
+        return chooseKey(query=query)
     if query.data == '2':
         return convEnd(query)
 
