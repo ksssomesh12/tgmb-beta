@@ -468,7 +468,7 @@ class AriaHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
         self.api: aria2p.API = aria2p.API(aria2p.Client(host="http://localhost", port=6800,
-                                                        secret=envVars[list(optConfigVars.keys())[1]]))
+                                                        secret=configVars[list(optConfigVars.keys())[1]]))
         self.ariaGids: typing.Dict[str, str] = {}
 
     def addDownload(self, mirrorInfo: MirrorInfo):
@@ -541,12 +541,12 @@ class GoogleDriveHelper:
         self.googleDriveFolderMimeType: str = 'application/vnd.google-apps.folder'
         self.chunkSize: int = 32 * 1024 * 1024
         self.service: typing.Any = None
-        if envVars[reqConfigVars[4]][self.authTypes[0]]:
+        if configVars[reqConfigVars[4]][self.authTypes[0]]:
             self.oauthCreds: google.oauth2.service_account.Credentials \
-                = google.oauth2.service_account.Credentials.from_service_account_info(envVars[reqConfigVars[4]][self.authTypes[0]])
-        elif envVars[reqConfigVars[4]][self.authTypes[1]]:
+                = google.oauth2.service_account.Credentials.from_service_account_info(configVars[reqConfigVars[4]][self.authTypes[0]])
+        elif configVars[reqConfigVars[4]][self.authTypes[1]]:
             self.oauthCreds: google.oauth2.credentials.Credentials \
-                = google.oauth2.credentials.Credentials.from_authorized_user_info(envVars[reqConfigVars[4]][self.authTypes[1]], self.oauthScopes)
+                = google.oauth2.credentials.Credentials.from_authorized_user_info(configVars[reqConfigVars[4]][self.authTypes[1]], self.oauthScopes)
         else:
             logger.error('No Valid googleDriveAuth in configJsonFile ! Exiting...')
             exit(1)
@@ -592,15 +592,15 @@ class GoogleDriveHelper:
         raise NotImplementedError
 
     def authorizeApi(self):
-        if envVars[reqConfigVars[4]][self.authTypes[1]]:
+        if not configVars[reqConfigVars[4]][self.authTypes[0]]:
             if not self.oauthCreds.valid:
                 if self.oauthCreds.expired and self.oauthCreds.refresh_token:
                     self.oauthCreds.refresh(google.auth.transport.requests.Request())
                     logger.info('Google Drive API Token Refreshed !')
-                    envVars[reqConfigVars[4]][self.authTypes[1]] = json.loads(self.oauthCreds.to_json())
+                    configVars[reqConfigVars[4]][self.authTypes[1]] = json.loads(self.oauthCreds.to_json())
                     if envVars['dynamicConfig']:
                         self.buildService()
-                    updateConfigJson({reqConfigVars[4]: envVars[reqConfigVars[4]]})
+                    updateConfigJson({reqConfigVars[4]: configVars[reqConfigVars[4]]})
                 else:
                     logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
@@ -898,7 +898,7 @@ class StatusHelper:
         self.updaterLock = threading.Lock()
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
-        self.statusUpdateInterval: int = int(envVars[list(optConfigVars.keys())[3]])
+        self.statusUpdateInterval: int = int(configVars[list(optConfigVars.keys())[3]])
         self.msgId: int = 0
         self.chatId: int = 0
         self.lastStatusMsgId: int = 0
@@ -1183,11 +1183,11 @@ def checkBotApiStart():
 
 
 def checkConfigVars():
-    global configJsonFile, envVars, optConfigVars, reqConfigVars
-    envVars = {**envVars, **optConfigVars, **jsonFileLoad(configJsonFile)}
+    global configJsonFile, configVars, optConfigVars, reqConfigVars
+    configVars = {**optConfigVars, **jsonFileLoad(configJsonFile)}
     for reqConfigVar in reqConfigVars:
         try:
-            if envVars[reqConfigVar] in ['', ' ', {}]:
+            if configVars[reqConfigVar] in ['', ' ', {}]:
                 raise KeyError
         except KeyError:
             logger.error(f"Required Environment Variable Missing: '{reqConfigVar}' ! Exiting...")
@@ -1211,7 +1211,7 @@ def configHandler():
         envVars = {**envVars, **jsonFileLoad(dynamicJsonFile)}
         ariaDl(fileidJsonFile)
         if not os.path.exists(fileidJsonFile):
-            logger.error(f"Config File Missing: '{fileidJsonFile}' ! Exiting...")
+            logger.error(f"Missing configFile: '{fileidJsonFile}' ! Exiting...")
             exit(1)
         envVars = {**envVars, **jsonFileLoad(fileidJsonFile)}
         for configFile in configFiles:
@@ -1337,17 +1337,17 @@ def jsonFileWrite(jsonFileName: str, jsonDict: dict):
 
 def initBotApi():
     global bot, dispatcher, updater
-    updater = telegram.ext.Updater(token=envVars[reqConfigVars[0]], base_url="http://localhost:8081/bot")
+    updater = telegram.ext.Updater(token=configVars[reqConfigVars[0]], base_url="http://localhost:8081/bot")
     bot = updater.bot
     dispatcher = updater.dispatcher
 
 
 def updateAuthorizedChatsDict(chatId: int, chatName: str, chatType: str, auth: bool = None, unauth: bool = None):
     if auth:
-        envVars[list(optConfigVars.keys())[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
+        configVars[list(optConfigVars.keys())[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
     if unauth:
-        envVars[list(optConfigVars.keys())[0]].pop(str(chatId))
-    updateConfigJson({list(optConfigVars.keys())[0]: envVars[list(optConfigVars.keys())[0]]})
+        configVars[list(optConfigVars.keys())[0]].pop(str(chatId))
+    updateConfigJson({list(optConfigVars.keys())[0]: configVars[list(optConfigVars.keys())[0]]})
 
 
 def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]]):
@@ -1387,12 +1387,12 @@ restartJsonFile = 'restart.json'
 dynamicJsonFile = 'dynamic.json'
 fileidJsonFile = 'fileid.json'
 configFiles: [str] = [configJsonFile, configJsonBakFile]
+envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
+configVars: typing.Dict[str, typing.Union[bool, str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]] = {}
 reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                         'googleDriveAuth', 'googleDriveUploadFolderIds']
 optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
     {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
-envVars: typing.Dict[str, typing.Union[bool, str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]] = \
-    {'currWorkDir': os.getcwd()}
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
@@ -1423,7 +1423,7 @@ mirrorHelper = MirrorHelper()
 
 mirrorHelper.googleDriveHelper.authorizeApi()
 
-dlRootDirPath = os.path.join(envVars['currWorkDir'], envVars[list(optConfigVars.keys())[2]])
+dlRootDirPath = os.path.join(envVars['currWorkDir'], configVars[list(optConfigVars.keys())[2]])
 
 if os.path.exists(dlRootDirPath):
     shutil.rmtree(dlRootDirPath)
