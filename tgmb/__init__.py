@@ -1428,8 +1428,6 @@ initBotApi()
 
 mirrorHelper = MirrorHelper()
 
-mirrorHelper.googleDriveHelper.authorizeApi()
-
 dlRootDirPath = os.path.join(envVars['currWorkDir'], configVars[optConfigVars[2]])
 
 if os.path.exists(dlRootDirPath):
