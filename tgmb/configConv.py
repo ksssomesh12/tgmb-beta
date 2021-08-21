@@ -2,33 +2,33 @@ from . import *
 
 
 def loadConfigDict():
-    global configVars, configVarsNew
-    configVars = {}
+    global configVarsEditable, configVarsNew
+    configVarsEditable = {}
     configVarsNew = {}
-    configVars = jsonFileLoad(configJsonFile)
+    configVarsEditable = jsonFileLoad(configJsonFile)
     for key in [reqConfigVars[4], reqConfigVars[5], list(optConfigVars.keys())[0]]:
-        if key in list(configVars.keys()):
-            configVars.pop(key)
+        if key in list(configVarsEditable.keys()):
+            configVarsEditable.pop(key)
 
 
 def chooseKey(update: telegram.Update = None, query: telegram.CallbackQuery = None) -> int:
-    global configVars, tempKey, tempVal
+    global configVarsEditable, tempKey, tempVal
     tempKey, tempVal = '', ''
     if query is None:
         update.message.reply_text(text="Select an Environment Variable:",
-                                  reply_markup=InlineKeyboardMaker(list(configVars.keys()) + ['Exit']).build(1))
+                                  reply_markup=InlineKeyboardMaker(list(configVarsEditable.keys()) + ['Exit']).build(1))
     if update is None:
         query.edit_message_text(text="Select an Environment Variable:",
-                                reply_markup=InlineKeyboardMaker(list(configVars.keys()) + ['Exit']).build(1))
+                                reply_markup=InlineKeyboardMaker(list(configVarsEditable.keys()) + ['Exit']).build(1))
     return FIRST
 
 
 def viewVal(query: telegram.CallbackQuery) -> int:
-    global configVars, tempKey
+    global configVarsEditable, tempKey
     tempKeyIndex = int(query.data) - 1
-    if tempKeyIndex != len(list(configVars.keys())):
-        tempKey = list(configVars.keys())[tempKeyIndex]
-        query.edit_message_text(text=f'"{tempKey}" = "{configVars[tempKey]}"',
+    if tempKeyIndex != len(list(configVarsEditable.keys())):
+        tempKey = list(configVarsEditable.keys())[tempKeyIndex]
+        query.edit_message_text(text=f'"{tempKey}" = "{configVarsEditable[tempKey]}"',
                                 reply_markup=InlineKeyboardMaker(['Edit', 'Back']).build(2))
         return SECOND
     else:
@@ -151,7 +151,7 @@ def stageSix(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
 
 
 FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH = range(6)
-configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]
+configVarsEditable: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]
 configVarsNew: typing.Dict[str, str]
 tempKey: str
 tempVal: str
