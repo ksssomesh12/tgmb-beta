@@ -6,7 +6,7 @@ botApiServer: subprocess.Popen
 botApiServerStartCmd = [f"telegram-bot-api", f"--local", f"--verbosity=9",
                         f"--api-id={configVars[reqConfigVars[2]]}", f"--api-hash={configVars[reqConfigVars[3]]}",
                         f"--log={os.path.join(envVars['currWorkDir'], logFiles[1])}"]
-ariaDaemonStartCmd = [f"aria2c", "--daemon", "--enable-rpc", f"--rpc-secret={configVars[list(optConfigVars.keys())[1]]}",
+ariaDaemonStartCmd = [f"aria2c", "--daemon", "--enable-rpc", f"--rpc-secret={configVars[optConfigVars[1]]}",
                       f"--follow-torrent=mem", f"--check-certificate=false", f"--max-connection-per-server=10",
                       f"--rpc-max-request-size=1024M", f"--min-split-size=10M", f"--allow-overwrite=true",
                       f"--bt-max-peers=0", f"--seed-time=0.01", f"--split=10", f"--max-overall-upload-limit=1K",

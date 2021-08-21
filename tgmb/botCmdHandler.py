@@ -82,7 +82,7 @@ def deleteCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     chatId, chatName, chatType = getChatDetails(update)
-    if str(chatId) in configVars[list(optConfigVars.keys())[0]].keys():
+    if str(chatId) in configVars[optConfigVars[0]].keys():
         replyTxt = f"Already Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     else:
         updateAuthorizedChatsDict(chatId, chatName, chatType, auth=True)
@@ -94,7 +94,7 @@ def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     chatId, chatName, chatType = getChatDetails(update)
-    if str(chatId) in configVars[list(optConfigVars.keys())[0]].keys():
+    if str(chatId) in configVars[optConfigVars[0]].keys():
         updateAuthorizedChatsDict(chatId, chatName, chatType, unauth=True)
         replyTxt = f"Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     else:

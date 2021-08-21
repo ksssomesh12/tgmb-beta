@@ -6,7 +6,7 @@ def loadConfigDict():
     configVarsEditable = {}
     configVarsNew = {}
     configVarsEditable = jsonFileLoad(configJsonFile)
-    for key in [reqConfigVars[4], reqConfigVars[5], list(optConfigVars.keys())[0]]:
+    for key in [reqConfigVars[4], reqConfigVars[5], optConfigVars[0]]:
         if key in list(configVarsEditable.keys()):
             configVarsEditable.pop(key)
 

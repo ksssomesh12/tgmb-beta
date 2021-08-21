@@ -468,7 +468,7 @@ class AriaHelper:
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
         self.api: aria2p.API = aria2p.API(aria2p.Client(host="http://localhost", port=6800,
-                                                        secret=configVars[list(optConfigVars.keys())[1]]))
+                                                        secret=configVars[optConfigVars[1]]))
         self.ariaGids: typing.Dict[str, str] = {}
 
     def addDownload(self, mirrorInfo: MirrorInfo):
@@ -898,7 +898,7 @@ class StatusHelper:
         self.updaterLock = threading.Lock()
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
-        self.statusUpdateInterval: int = int(configVars[list(optConfigVars.keys())[3]])
+        self.statusUpdateInterval: int = int(configVars[optConfigVars[3]])
         self.msgId: int = 0
         self.chatId: int = 0
         self.lastStatusMsgId: int = 0
@@ -1183,15 +1183,22 @@ def checkBotApiStart():
 
 
 def checkConfigVars():
-    global configJsonFile, configVars, optConfigVars, reqConfigVars
-    configVars = {**optConfigVars, **jsonFileLoad(configJsonFile)}
+    global configJsonFile, configVars, optConfigVars, optConfigVals, reqConfigVars
+    configVars = jsonFileLoad(configJsonFile)
+    emptyVals: typing.List[typing.Union[str, typing.Dict]] = ['', ' ', {}]
     for reqConfigVar in reqConfigVars:
         try:
-            if configVars[reqConfigVar] in ['', ' ', {}]:
+            if configVars[reqConfigVar] in emptyVals:
                 raise KeyError
         except KeyError:
             logger.error(f"Required Environment Variable Missing: '{reqConfigVar}' ! Exiting...")
             exit(1)
+    for optConfigVar in optConfigVars:
+        try:
+            if configVars[optConfigVar] in emptyVals:
+                raise KeyError
+        except KeyError:
+            configVars[optConfigVar] = optConfigVals[optConfigVars.index(optConfigVar)]
 
 
 def checkRestart():
@@ -1344,9 +1351,9 @@ def initBotApi():
 
 def updateAuthorizedChatsDict(chatId: int, chatName: str, chatType: str, auth: bool = None, unauth: bool = None):
     if auth:
-        configVars[list(optConfigVars.keys())[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
+        configVars[optConfigVars[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
     if unauth:
-        configVars[list(optConfigVars.keys())[0]].pop(str(chatId))
+        configVars[optConfigVars[0]].pop(str(chatId))
     updateConfigJson()
 
 
@@ -1391,8 +1398,8 @@ envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()
 configVars: typing.Dict[str, typing.Union[bool, str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]] = {}
 reqConfigVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                         'googleDriveAuth', 'googleDriveUploadFolderIds']
-optConfigVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]] = \
-    {'authorizedChats': {}, 'ariaRpcSecret': 'tgmb-beta', 'dlRootDir': 'dl', 'statusUpdateInterval': '5'}
+optConfigVars: typing.List[str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir', 'statusUpdateInterval']
+optConfigVals: typing.List[typing.Union[str, typing.Dict]] = [{}, 'tgmb-beta', 'dl', '5']
 logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
@@ -1423,7 +1430,7 @@ mirrorHelper = MirrorHelper()
 
 mirrorHelper.googleDriveHelper.authorizeApi()
 
-dlRootDirPath = os.path.join(envVars['currWorkDir'], configVars[list(optConfigVars.keys())[2]])
+dlRootDirPath = os.path.join(envVars['currWorkDir'], configVars[optConfigVars[2]])
 
 if os.path.exists(dlRootDirPath):
     shutil.rmtree(dlRootDirPath)
