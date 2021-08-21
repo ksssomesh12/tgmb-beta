@@ -3,6 +3,11 @@
   "botOwnerId": "",
   "telegramApiId": "",
   "telegramApiHash": "",
+  "googleDriveAuth": {
+    "credsJson": {},
+    "saJson": {},
+    "tokenJson": {}
+  },
   "googleDriveUploadFolderIds": {
     "#folderId-01": "#folderDescription-01",
     "#folderId-02": "#folderDescription-02",
