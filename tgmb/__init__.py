@@ -600,7 +600,7 @@ class GoogleDriveHelper:
                     configVars[reqConfigVars[4]][self.authTypes[1]] = json.loads(self.oauthCreds.to_json())
                     if envVars['dynamicConfig']:
                         self.buildService()
-                    updateConfigJson({reqConfigVars[4]: configVars[reqConfigVars[4]]})
+                    updateConfigJson()
                 else:
                     logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
@@ -1347,12 +1347,12 @@ def updateAuthorizedChatsDict(chatId: int, chatName: str, chatType: str, auth: b
         configVars[list(optConfigVars.keys())[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
     if unauth:
         configVars[list(optConfigVars.keys())[0]].pop(str(chatId))
-    updateConfigJson({list(optConfigVars.keys())[0]: configVars[list(optConfigVars.keys())[0]]})
+    updateConfigJson()
 
 
-def updateConfigJson(updateDict: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]]):
+def updateConfigJson():
     fileBak(configJsonFile)
-    jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **updateDict})
+    jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **configVars})
     if envVars['dynamicConfig']:
         logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonFile}"))
         logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonBakFile}"))

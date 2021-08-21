@@ -79,7 +79,9 @@ def discardChanges(query: telegram.CallbackQuery) -> int:
 def saveChanges(query: telegram.CallbackQuery) -> int:
     global configVarsNew
     query.edit_message_text(text=f"Saving Changes...")
-    updateConfigJson(configVarsNew)
+    for key in list(configVarsNew.keys()):
+        configVars[key] = configVarsNew[key]
+    updateConfigJson()
     logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{configJsonFile}' !")
     query.edit_message_text(text=f"Saved Changes.\nPlease /{BotCommands.Restart.command} to Load Changes.")
     return telegram.ext.ConversationHandler.END
