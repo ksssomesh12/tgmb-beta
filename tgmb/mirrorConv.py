@@ -32,7 +32,7 @@ def getMirrorInfoStr():
 
 def stageZero(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     global mirrorInfo
-    isValidDl, mirrorInfo = mirrorHelper.genMirrorInfo(update.message)
+    isValidDl, mirrorInfo = botHelper.mirrorHelper.genMirrorInfo(update.message)
     if isValidDl:
         # <setDefaults>
         mirrorInfo.isGoogleDriveUpload = True
@@ -51,7 +51,7 @@ def stageOne(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query.answer()
     if query.data == '1':
         logger.info(f"addMirror - ['{mirrorInfo.downloadUrl}']")
-        mirrorHelper.addMirror(mirrorInfo)
+        botHelper.mirrorHelper.addMirror(mirrorInfo)
         query.edit_message_text(text='addMirror Succeeded !')
         return telegram.ext.ConversationHandler.END
     elif query.data == '2':
@@ -106,7 +106,7 @@ def stageFive(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query.answer()
     if query.data == '1':
         logger.info(f"addMirror - ['{mirrorInfo.downloadUrl}']")
-        mirrorHelper.addMirror(mirrorInfo)
+        botHelper.mirrorHelper.addMirror(mirrorInfo)
         query.edit_message_text(text='addMirror Succeeded !')
     elif query.data == '2':
         query.edit_message_text(text='addMirror Cancelled !')

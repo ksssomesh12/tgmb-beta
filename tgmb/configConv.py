@@ -50,7 +50,7 @@ def newVal(update: telegram.Update, _: telegram.ext.CallbackContext) -> None:
 
 def verifyNewVal(query: telegram.CallbackQuery) -> int:
     global tempVal
-    bot.deleteMessage(chat_id=newValMsg.chat_id, message_id=newValMsg.message_id)
+    botHelper.bot.deleteMessage(chat_id=newValMsg.chat_id, message_id=newValMsg.message_id)
     query.edit_message_text(text=f'Entered Value is:\n\n"{tempVal}"',
                             reply_markup=InlineKeyboardMaker(['Update Value', 'Back']).build(2))
     return FOURTH

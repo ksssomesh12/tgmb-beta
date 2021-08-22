@@ -40,6 +40,37 @@ import warnings
 import youtube_dl
 
 
+class BotHelper:
+    def __init__(self):
+        self.bot: telegram.Bot
+        self.dispatcher: telegram.ext.Dispatcher
+        self.updater: telegram.ext.Updater
+        self.mirrorHelper = MirrorHelper(self)
+        self.listenAddress: str = 'localhost'
+        self.listenPort: int = 8443
+        self.startTime: float = time.time()
+        self.updater = telegram.ext.Updater(token=configVars[reqConfigVars[0]], base_url=f'http://{self.listenAddress}:8081/bot')
+        self.dispatcher = self.updater.dispatcher
+        self.bot = self.updater.bot
+
+    def updaterStart(self):
+        self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=configVars[reqConfigVars[0]],
+                                   webhook_url=f'http://{self.listenAddress}:{self.listenPort}/{configVars[reqConfigVars[0]]}')
+
+    def updaterIdle(self):
+        self.updater.idle()
+
+    def checkApiStart(self):
+        conSuccess = False
+        while not conSuccess:
+            try:
+                self.bot.getMe()
+                conSuccess = True
+            except telegram.error.NetworkError:
+                time.sleep(0.1)
+                continue
+
+
 class MirrorInfo:
     updatableVars: typing.List[str] = ['sizeTotal', 'sizeCurrent', 'speedCurrent', 'timeCurrent',
                                        'isTorrent', 'numSeeders', 'numLeechers']
@@ -205,8 +236,8 @@ class MirrorListener:
         shutil.rmtree(mirrorInfo.path)
         self.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
         if mirrorInfo.isGoogleDriveUpload or mirrorInfo.isMegaUpload:
-            bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
-                            parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
+            self.mirrorHelper.botHelper.bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
+                                                        parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
 
     def onDownloadQueue(self, mirrorInfo: MirrorInfo):
         self.resetMirrorProgress(mirrorInfo.uid)
@@ -368,7 +399,8 @@ class MirrorListener:
 
 
 class MirrorHelper:
-    def __init__(self):
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
         self.mirrorInfos: typing.Dict[str, MirrorInfo] = {}
         self.mirrorListener: MirrorListener = MirrorListener(self)
         self.ariaHelper = AriaHelper(self)
@@ -784,8 +816,8 @@ class TelegramHelper:
         if os.path.isfile(uploadPath):
             if not self.uploadFile(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
-                bot.sendMessage(text='Files Larger Than 2GB Cannot Be Uploaded Yet !', parse_mode='HTML',
-                                chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
+                self.mirrorHelper.botHelper.bot.sendMessage(text='Files Larger Than 2GB Cannot Be Uploaded Yet !', parse_mode='HTML',
+                                                            chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
         if os.path.isdir(uploadPath):
             if not self.uploadFolder(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
@@ -803,8 +835,8 @@ class TelegramHelper:
 
     def uploadFile(self, filePath: str, chatId: int, msgId: int):
         if os.path.getsize(filePath) < self.uploadMaxSize:
-            bot.sendDocument(document=f'file://{filePath}', filename=filePath.split('/')[-1],
-                             chat_id=chatId, reply_to_message_id=msgId, timeout=self.maxTimeout)
+            self.mirrorHelper.botHelper.bot.sendDocument(document=f'file://{filePath}', filename=filePath.split('/')[-1],
+                                                         chat_id=chatId, reply_to_message_id=msgId, timeout=self.maxTimeout)
             return True
         return False
 
@@ -823,7 +855,8 @@ class TelegramHelper:
             skippedContentsMsg = 'Skipped Files Due to uploadMaxSize:\n'
             for content in skippedContents:
                 skippedContentsMsg += f'{content}\n'
-            bot.sendMessage(text=skippedContentsMsg, parse_mode='HTML', chat_id=chatId, reply_to_message_id=msgId)
+            self.mirrorHelper.botHelper.bot.sendMessage(text=skippedContentsMsg, parse_mode='HTML',
+                                                        chat_id=chatId, reply_to_message_id=msgId)
         return True
 
 
@@ -918,11 +951,11 @@ class StatusHelper:
             if self.lastStatusMsgId == 0:
                 self.isInitThread = True
             if self.lastStatusMsgId != 0:
-                bot.deleteMessage(chat_id=self.chatId, message_id=self.lastStatusMsgId)
+                self.mirrorHelper.botHelper.bot.deleteMessage(chat_id=self.chatId, message_id=self.lastStatusMsgId)
             self.chatId = chatId
             self.msgId = msgId
-            self.lastStatusMsgId = bot.sendMessage(text='...', parse_mode='HTML', chat_id=self.chatId,
-                                                   reply_to_message_id=self.msgId).message_id
+            self.lastStatusMsgId = self.mirrorHelper.botHelper.bot.sendMessage(text='...', parse_mode='HTML', chat_id=self.chatId,
+                                                                               reply_to_message_id=self.msgId).message_id
             if self.isInitThread:
                 self.isInitThread = False
                 threadInit(target=self.updateStatusMsg, name='statusUpdaterStart')
@@ -953,8 +986,8 @@ class StatusHelper:
                 if self.mirrorHelper.mirrorInfos:
                     statusMsgTxt = self.getStatusMsgTxt()
                     if statusMsgTxt != self.lastStatusMsgTxt:
-                        bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
-                                            message_id=self.lastStatusMsgId)
+                        self.mirrorHelper.botHelper.bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
+                                                                        message_id=self.lastStatusMsgId)
                         self.lastStatusMsgTxt = statusMsgTxt
                         time.sleep(self.statusUpdateInterval - 1)
                     time.sleep(1)
@@ -965,8 +998,8 @@ class StatusHelper:
                     threadInit(target=self.updateStatusMsg, name='statusUpdaterEnd')
                     return
             if not self.isUpdateStatus:
-                bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
-                                    chat_id=self.chatId, message_id=self.lastStatusMsgId)
+                self.mirrorHelper.botHelper.bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
+                                                                chat_id=self.chatId, message_id=self.lastStatusMsgId)
                 self.resetAllDat()
 
     def resetAllDat(self):
@@ -1177,18 +1210,6 @@ def ariaDl(fileName: str):
             timeLapsed += 0.1
 
 
-def checkBotApiStart():
-    global bot
-    conSuccess = False
-    while not conSuccess:
-        try:
-            bot.getMe()
-            conSuccess = True
-        except telegram.error.NetworkError:
-            time.sleep(0.1)
-            continue
-
-
 def checkConfigVars():
     global configJsonFile, configVars, optConfigVars, optConfigVals, reqConfigVars
     configVars = jsonFileLoad(configJsonFile)
@@ -1209,11 +1230,11 @@ def checkConfigVars():
 
 
 def checkRestart():
-    global bot
+    global botHelper
     if os.path.exists(restartJsonFile):
         restartJsonDict = jsonFileLoad(restartJsonFile)
-        bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
-                            chat_id=restartJsonDict['chatId'], message_id=restartJsonDict['msgId'])
+        botHelper.bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
+                                      chat_id=restartJsonDict['chatId'], message_id=restartJsonDict['msgId'])
         os.remove(restartJsonFile)
 
 
@@ -1325,7 +1346,7 @@ def getReadableTime(seconds: float):
 
 
 def getStatsMsg():
-    botUpTime = getReadableTime(time.time() - botStartTime)
+    botUpTime = getReadableTime(time.time() - botHelper.startTime)
     cpuUsage = psutil.cpu_percent(interval=0.5)
     memoryUsage = psutil.virtual_memory().percent
     diskUsageTotal, diskUsageUsed, diskUsageFree, diskUsage = psutil.disk_usage('.')
@@ -1349,14 +1370,7 @@ def jsonFileWrite(jsonFileName: str, jsonDict: dict):
     open(jsonFileName, 'wt', encoding='utf-8').write(json.dumps(jsonDict, indent=2) + '\n')
 
 
-def initBotApi():
-    global bot, dispatcher, updater
-    updater = telegram.ext.Updater(token=configVars[reqConfigVars[0]], base_url="http://localhost:8081/bot")
-    bot = updater.bot
-    dispatcher = updater.dispatcher
-
-
-def updateAuthorizedChatsDict(chatId: int, chatName: str, chatType: str, auth: bool = None, unauth: bool = None):
+def updateAuthorizedChats(chatId: int, chatName: str, chatType: str, auth: bool = None, unauth: bool = None):
     if auth:
         configVars[optConfigVars[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
     if unauth:
@@ -1368,8 +1382,8 @@ def updateConfigJson():
     fileBak(configJsonFile)
     jsonFileWrite(configJsonFile, {**jsonFileLoad(configJsonFile), **configVars})
     if envVars['dynamicConfig']:
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonFile}"))
-        logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonBakFile}"))
+        logger.info(botHelper.mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonFile}"))
+        logger.info(botHelper.mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{configJsonBakFile}"))
         updateFileidJson()
 
 
@@ -1383,7 +1397,7 @@ def updateFileidJson():
         fileidJsonDict[fileNameEnv] = envVars[fileNameEnv]
         fileidJsonDict[fileHashEnv] = envVars[fileHashEnv]
     jsonFileWrite(fileidJsonFile, fileidJsonDict)
-    logger.info(mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{fileidJsonFile}"))
+    logger.info(botHelper.mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{fileidJsonFile}"))
 
 
 # loguru default format
@@ -1391,10 +1405,6 @@ def updateFileidJson():
 # '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
 
 runningThreads: typing.List[threading.Thread] = []
-botStartTime: float = time.time()
-bot: telegram.Bot
-dispatcher: telegram.ext.Dispatcher
-updater: telegram.ext.Updater
 configJsonFile = 'config.json'
 configJsonBakFile = configJsonFile + '.bak'
 restartJsonFile = 'restart.json'
@@ -1431,9 +1441,8 @@ logging.basicConfig(handlers=[InterceptHandler()], level=0)
 
 configHandler()
 checkConfigVars()
-initBotApi()
 
-mirrorHelper = MirrorHelper()
+botHelper = BotHelper()
 
 envVars['dlRootDirPath'] = os.path.join(envVars['currWorkDir'], configVars[optConfigVars[2]])
 

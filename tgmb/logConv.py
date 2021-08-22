@@ -18,15 +18,15 @@ def stageOne(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     query.answer()
     if query.data in ['1', '2', '3', '4']:
         if query.data == '4':
-            bot.sendMediaGroup(media=[telegram.InputMediaDocument(logFile) for logFile in logFiles[0:3]],
-                               chat_id=chatId, reply_to_message_id=msgId, timeout=docSendTimeout)
+            botHelper.bot.sendMediaGroup(media=[telegram.InputMediaDocument(logFile) for logFile in logFiles[0:3]],
+                                         chat_id=chatId, reply_to_message_id=msgId, timeout=docSendTimeout)
             logger.info("Sent logFiles !")
         else:
             logFileIndex = int(query.data) - 1
-            bot.sendDocument(document=f"file://{envVars['currWorkDir']}/{logFiles[logFileIndex]}",
-                             filename=logFiles[logFileIndex], chat_id=chatId, reply_to_message_id=msgId, timeout=docSendTimeout)
+            botHelper.bot.sendDocument(document=f"file://{envVars['currWorkDir']}/{logFiles[logFileIndex]}",
+                                       filename=logFiles[logFileIndex], chat_id=chatId, reply_to_message_id=msgId, timeout=docSendTimeout)
             logger.info(f"Sent logFile: '{logFiles[logFileIndex]}' !")
-        bot.deleteMessage(chat_id=chatId, message_id=sentMsgId)
+        botHelper.bot.deleteMessage(chat_id=chatId, message_id=sentMsgId)
     if query.data == '5':
         query.edit_message_text(text='Exited.')
     return telegram.ext.ConversationHandler.END
