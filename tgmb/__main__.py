@@ -8,7 +8,7 @@ def main():
     # TODO: add checkAriaDaemonStart()
     botHelper.mirrorHelper.ariaHelper.startListener()
     botHelper.mirrorHelper.googleDriveHelper.authorizeApi()
-    botCmdHandler.addHandlers()
+    botHelper.addAllHandlers(botCmdHandler.cmdHandlerInfos, botCmdHandler.convHandlers, botCmdHandler.unknownCallBack)
     botHelper.updaterStart()
     botHelper.mirrorHelper.mirrorListener.startWebhookServer()
     logger.info("Bot Started !")

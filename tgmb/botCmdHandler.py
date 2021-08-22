@@ -134,35 +134,19 @@ def unknownCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
                                   chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-def addHandlers():
-    startHandler = telegram.ext.CommandHandler(BotCommands.Start.command, startCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(startHandler)
-    helpHandler = telegram.ext.CommandHandler(BotCommands.Help.command, helpCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(helpHandler)
-    statsHandler = telegram.ext.CommandHandler(BotCommands.Stats.command, statsCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(statsHandler)
-    pingHandler = telegram.ext.CommandHandler(BotCommands.Ping.command, pingCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(pingHandler)
-    restartHandler = telegram.ext.CommandHandler(BotCommands.Restart.command, restartCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(restartHandler)
-    statusHandler = telegram.ext.CommandHandler(BotCommands.Status.command, statusCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(statusHandler)
-    cancelHandler = telegram.ext.CommandHandler(BotCommands.Cancel.command, cancelCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(cancelHandler)
-    listHandler = telegram.ext.CommandHandler(BotCommands.List.command, listCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(listHandler)
-    deleteHandler = telegram.ext.CommandHandler(BotCommands.Delete.command, deleteCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(deleteHandler)
-    authorizeHandler = telegram.ext.CommandHandler(BotCommands.Authorize.command, authorizeCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(authorizeHandler)
-    unauthorizeHandler = telegram.ext.CommandHandler(BotCommands.Unauthorize.command, unauthorizeCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(unauthorizeHandler)
-    syncHandler = telegram.ext.CommandHandler(BotCommands.Sync.command, syncCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(syncHandler)
-    topHandler = telegram.ext.CommandHandler(BotCommands.Top.command, topCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(topHandler)
-    botHelper.dispatcher.add_handler(configConv.handler)
-    botHelper.dispatcher.add_handler(logConv.handler)
-    botHelper.dispatcher.add_handler(mirrorConv.handler)
-    unknownHandler = telegram.ext.MessageHandler(telegram.ext.Filters.command, unknownCallBack, run_async=True)
-    botHelper.dispatcher.add_handler(unknownHandler)
+cmdHandlerInfos: typing.Dict[str, typing.Dict[str, typing.Union[telegram.BotCommand, typing.Callable]]] = \
+    {'startHandler': {'botCmd': BotCommands.Start, 'callBack': startCallBack},
+     'helpHandler': {'botCmd': BotCommands.Help, 'callBack': helpCallBack},
+     'statsHandler': {'botCmd': BotCommands.Stats, 'callBack': statsCallBack},
+     'pingHandler': {'botCmd': BotCommands.Ping, 'callBack': pingCallBack},
+     'restartHandler': {'botCmd': BotCommands.Restart, 'callBack': restartCallBack},
+     'statusHandler': {'botCmd': BotCommands.Status, 'callBack': statusCallBack},
+     'cancelHandler': {'botCmd': BotCommands.Cancel, 'callBack': cancelCallBack},
+     'listHandler': {'botCmd': BotCommands.List, 'callBack': listCallBack},
+     'deleteHandler': {'botCmd': BotCommands.Delete, 'callBack': deleteCallBack},
+     'authorizeHandler': {'botCmd': BotCommands.Authorize, 'callBack': authorizeCallBack},
+     'unauthorizeHandler': {'botCmd': BotCommands.Unauthorize, 'callBack': unauthorizeCallBack},
+     'syncHandler': {'botCmd': BotCommands.Sync, 'callBack': syncCallBack},
+     'topHandler': {'botCmd': BotCommands.Top, 'callBack': topCallBack}}
+convHandlers: typing.Dict[str, telegram.ext.ConversationHandler] = \
+    {'configConvHandler': configConv.handler, 'logConvHandler': logConv.handler, 'mirrorConvHandler': mirrorConv.handler}

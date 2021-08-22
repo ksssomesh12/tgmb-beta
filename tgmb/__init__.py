@@ -53,6 +53,20 @@ class BotHelper:
         self.dispatcher = self.updater.dispatcher
         self.bot = self.updater.bot
 
+    def addAllHandlers(self, cmdHandlerInfos: typing.Dict[str, typing.Dict[str, typing.Union[telegram.BotCommand, typing.Callable]]],
+                       convHandlers: typing.Dict[str, telegram.ext.ConversationHandler], unknownCallBack: typing.Callable):
+        cmdHandlers: typing.Dict[str, telegram.ext.CommandHandler] = {}
+        for cmdHandlerKey in list(cmdHandlerInfos.keys()):
+            cmdHandlerInfo: typing.Dict[str, typing.Union[telegram.BotCommand, typing.Callable]] = cmdHandlerInfos[cmdHandlerKey]
+            cmdHandlers[cmdHandlerKey] = telegram.ext.CommandHandler(command=cmdHandlerInfo['botCmd'].command,
+                                                                     callback=cmdHandlerInfo['callBack'], run_async=True)
+        for cmdHandler in list(cmdHandlers.values()):
+            self.dispatcher.add_handler(cmdHandler)
+        for convHandler in list(convHandlers.values()):
+            self.dispatcher.add_handler(convHandler)
+        unknownHandler = telegram.ext.MessageHandler(filters=telegram.ext.Filters.command, callback=unknownCallBack, run_async=True)
+        self.dispatcher.add_handler(unknownHandler)
+
     def updaterStart(self):
         self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=configVars[reqConfigVars[0]],
                                    webhook_url=f'http://{self.listenAddress}:{self.listenPort}/{configVars[reqConfigVars[0]]}')
