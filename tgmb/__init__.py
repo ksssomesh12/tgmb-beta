@@ -949,23 +949,25 @@ class StatusHelper:
 
     def updateStatusMsg(self):
         with self.updaterLock:
-            if not self.isUpdateStatus:
-                bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
-                                    chat_id=self.chatId, message_id=self.lastStatusMsgId)
-                self.resetAllDat()
-                return
-            while self.isUpdateStatus:
-                if self.mirrorHelper.mirrorInfos != {}:
+            if self.isUpdateStatus:
+                if self.mirrorHelper.mirrorInfos:
                     statusMsgTxt = self.getStatusMsgTxt()
                     if statusMsgTxt != self.lastStatusMsgTxt:
                         bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
                                             message_id=self.lastStatusMsgId)
                         self.lastStatusMsgTxt = statusMsgTxt
-                        time.sleep(self.statusUpdateInterval)
+                        time.sleep(self.statusUpdateInterval - 1)
                     time.sleep(1)
-                if self.mirrorHelper.mirrorInfos == {}:
+                    threadInit(target=self.updateStatusMsg, name='statusUpdaterContinue')
+                    return
+                if not self.mirrorHelper.mirrorInfos:
                     self.isUpdateStatus = False
                     threadInit(target=self.updateStatusMsg, name='statusUpdaterEnd')
+                    return
+            if not self.isUpdateStatus:
+                bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
+                                    chat_id=self.chatId, message_id=self.lastStatusMsgId)
+                self.resetAllDat()
 
     def resetAllDat(self):
         self.isInitThread = False
