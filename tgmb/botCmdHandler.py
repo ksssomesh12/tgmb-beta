@@ -46,7 +46,7 @@ def restartCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
                                            reply_to_message_id=update.message.message_id)
     jsonFileWrite(restartJsonFile, {'chatId': f'{restartMsg.chat_id}', 'msgId': f'{restartMsg.message_id}'})
     # TODO: may be not restart all subprocesses on every restart?
-    botHelper.subProcHelper.term()
+    botHelper.subProcHelper.termProcs()
     time.sleep(5)
     os.execl(sys.executable, sys.executable, '-m', 'tgmb')
 

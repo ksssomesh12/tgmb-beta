@@ -70,9 +70,9 @@ class BotHelper:
         self.dispatcher.add_handler(unknownHandler)
 
     def botStart(self, handlerInfos: typing.Tuple):
-        self.subProcHelper.init()
-        self.checkApiStart()
-        # TODO: add checkAriaDaemonStart()
+        self.subProcHelper.initProcs()
+        self.subProcHelper.checkAriaDaemonStatus()
+        self.subProcHelper.checkBotApiServerStatus()
         self.mirrorHelper.ariaHelper.startListener()
         self.mirrorHelper.googleDriveHelper.authorizeApi()
         self.addAllHandlers(*handlerInfos)
@@ -86,19 +86,9 @@ class BotHelper:
         self.updater.idle()
 
     def botStop(self):
-        self.subProcHelper.term()
+        self.subProcHelper.termProcs()
         self.mirrorHelper.mirrorListener.stopWebhookServer()
         logger.info("Bot Stopped !")
-
-    def checkApiStart(self):
-        conSuccess = False
-        while not conSuccess:
-            try:
-                self.bot.getMe()
-                conSuccess = True
-            except telegram.error.NetworkError:
-                time.sleep(0.1)
-                continue
 
     def checkBotRestart(self):
         if os.path.exists(restartJsonFile):
@@ -198,6 +188,7 @@ class GetHelper:
 class SubProcHelper:
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
+        self.subProcs: typing.List[str] = ['aria2c', 'telegram-bot-a']
         self.ariaDaemon: subprocess.Popen
         self.botApiServer: subprocess.Popen
         self.ariaDaemonStartCmd: typing.List[str] = \
@@ -228,6 +219,20 @@ class SubProcHelper:
         self.botApiServer.terminate()
         logger.info(f"botApiServer terminated (pid {self.botApiServer.pid})")
 
+    # TODO: implement this function
+    def checkAriaDaemonStatus(self):
+        pass
+
+    def checkBotApiServerStatus(self):
+        conSuccess = False
+        while not conSuccess:
+            try:
+                self.botHelper.bot.getMe()
+                conSuccess = True
+            except telegram.error.NetworkError:
+                time.sleep(0.1)
+                continue
+
     @staticmethod
     def delLogFiles():
         global logFiles
@@ -236,24 +241,23 @@ class SubProcHelper:
                 os.remove(file)
                 logger.debug(f"Deleted: '{file}'")
 
-    @staticmethod
-    def procKill(procs: list):
-        for proc in procs:
-            stdout = subprocess.run(['pkill', proc, '-e'], stdout=subprocess.PIPE).stdout.decode('utf-8').replace('\n', ' ')
+    def killProcs(self):
+        for subProc in self.subProcs:
+            stdout = subprocess.run(['pkill', subProc, '-e'], stdout=subprocess.PIPE).stdout.decode('utf-8').replace('\n', ' ')
             if stdout not in ['', ' ']:
                 logger.debug(stdout)
 
-    def init(self):
-        self.procKill(['aria2c', 'telegram-bot-a'])
+    def initProcs(self):
+        self.killProcs()
         self.delLogFiles()
         self.botApiServerStart()
         self.ariaDaemonStart()
 
-    def term(self):
+    def termProcs(self):
         self.ariaDaemonStop()
         self.botApiServerStop()
         self.delLogFiles()
-        self.procKill(['aria2c'])
+        self.killProcs()
 
 
 class MirrorInfo:
