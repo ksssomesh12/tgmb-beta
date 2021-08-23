@@ -47,6 +47,7 @@ class BotHelper:
         self.updater: telegram.ext.Updater
         self.getHelper = GetHelper(self)
         self.mirrorHelper = MirrorHelper(self)
+        self.subProcHelper = SubProcHelper(self)
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8443
         self.startTime: float = time.time()
@@ -171,6 +172,67 @@ class GetHelper:
                    f'dataDown: {self.readableSize(psutil.net_io_counters().bytes_recv)} | ' \
                    f'dataUp: {self.readableSize(psutil.net_io_counters().bytes_sent)}\n'
         return statsMsg
+
+
+class SubProcHelper:
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
+        self.ariaDaemon: subprocess.Popen
+        self.botApiServer: subprocess.Popen
+        self.ariaDaemonStartCmd: typing.List[str] = \
+            [f"aria2c", "--daemon", "--enable-rpc", f"--rpc-secret={configVars[optConfigVars[1]]}",
+             f"--follow-torrent=mem", f"--check-certificate=false", f"--max-connection-per-server=10",
+             f"--rpc-max-request-size=1024M", f"--min-split-size=10M", f"--allow-overwrite=true",
+             f"--bt-max-peers=0", f"--seed-time=0.01", f"--split=10", f"--max-overall-upload-limit=1K",
+             f"--bt-tracker=$(aria2c 'https://trackerslist.com/all_aria2.txt' --quiet=true"
+             f"--allow-overwrite=true --out=trackerslist.txt --check-certificate=false; cat trackerslist.txt)",
+             f"--log={os.path.join(envVars['currWorkDir'], logFiles[2])}"]
+        self.botApiServerStartCmd: typing.List[str] = \
+            [f"telegram-bot-api", f"--local", f"--verbosity=9", f"--api-id={configVars[reqConfigVars[2]]}",
+             f"--api-hash={configVars[reqConfigVars[3]]}", f"--log={os.path.join(envVars['currWorkDir'], logFiles[1])}"]
+
+    def ariaDaemonStart(self):
+        self.ariaDaemon = subprocess.Popen(self.ariaDaemonStartCmd)
+        logger.info(f"ariaDaemon started (pid {self.ariaDaemon.pid})")
+
+    def ariaDaemonStop(self):
+        self.ariaDaemon.terminate()
+        logger.info(f"ariaDaemon terminated (pid {self.ariaDaemon.pid})")
+
+    def botApiServerStart(self):
+        self.botApiServer = subprocess.Popen(self.botApiServerStartCmd)
+        logger.info(f"botApiServer started (pid {self.botApiServer.pid})")
+
+    def botApiServerStop(self):
+        self.botApiServer.terminate()
+        logger.info(f"botApiServer terminated (pid {self.botApiServer.pid})")
+
+    @staticmethod
+    def delLogFiles():
+        global logFiles
+        for file in logFiles[1:]:
+            if os.path.exists(file):
+                os.remove(file)
+                logger.debug(f"Deleted: '{file}'")
+
+    @staticmethod
+    def procKill(procs: list):
+        for proc in procs:
+            stdout = subprocess.run(['pkill', proc, '-e'], stdout=subprocess.PIPE).stdout.decode('utf-8').replace('\n', ' ')
+            if stdout not in ['', ' ']:
+                logger.debug(stdout)
+
+    def init(self):
+        self.procKill(['aria2c', 'telegram-bot-a'])
+        self.delLogFiles()
+        self.botApiServerStart()
+        self.ariaDaemonStart()
+
+    def term(self):
+        self.ariaDaemonStop()
+        self.botApiServerStop()
+        self.delLogFiles()
+        self.procKill(['aria2c'])
 
 
 class MirrorInfo:

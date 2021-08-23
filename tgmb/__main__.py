@@ -1,9 +1,9 @@
 from . import *
-from . import botCmdHandler, subProc
+from . import botCmdHandler
 
 
 def main():
-    subProc.init()
+    botHelper.subProcHelper.init()
     botHelper.checkApiStart()
     # TODO: add checkAriaDaemonStart()
     botHelper.mirrorHelper.ariaHelper.startListener()
@@ -14,7 +14,7 @@ def main():
     logger.info("Bot Started !")
     checkRestart()
     botHelper.updaterIdle()
-    subProc.term()
+    botHelper.subProcHelper.term()
     botHelper.mirrorHelper.mirrorListener.stopWebhookServer()
     logger.info("Bot Stopped !")
 

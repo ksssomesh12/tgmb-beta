@@ -1,5 +1,5 @@
 from . import *
-from . import configConv, logConv, mirrorConv, subProc
+from . import configConv, logConv, mirrorConv
 
 
 def startCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -46,7 +46,7 @@ def restartCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
                                            reply_to_message_id=update.message.message_id)
     jsonFileWrite(restartJsonFile, {'chatId': f'{restartMsg.chat_id}', 'msgId': f'{restartMsg.message_id}'})
     # TODO: may be not restart all subprocesses on every restart?
-    subProc.term()
+    botHelper.subProcHelper.term()
     time.sleep(5)
     os.execl(sys.executable, sys.executable, '-m', 'tgmb')
 
@@ -118,8 +118,8 @@ def syncCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 def topCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     topMsg = ''
     tgmbProc = psutil.Process(os.getpid())
-    ariaDaemonProc = psutil.Process(subProc.ariaDaemon.pid)
-    botApiServerProc = psutil.Process(subProc.botApiServer.pid)
+    ariaDaemonProc = psutil.Process(botHelper.subProcHelper.ariaDaemon.pid)
+    botApiServerProc = psutil.Process(botHelper.subProcHelper.botApiServer.pid)
     topMsg += f'{tgmbProc.name()}\n{tgmbProc.cpu_percent()}\n{tgmbProc.memory_percent()}\n'
     topMsg += f'{ariaDaemonProc.name()}\n{ariaDaemonProc.cpu_percent()}\n{ariaDaemonProc.memory_percent()}\n'
     topMsg += f'{botApiServerProc.name()}\n{botApiServerProc.cpu_percent()}\n{botApiServerProc.memory_percent()}\n'
