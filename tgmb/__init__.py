@@ -82,7 +82,7 @@ class BotHelper:
         logger.info("Bot Started !")
 
     def botIdle(self):
-        checkRestart()
+        self.checkBotRestart()
         self.updater.idle()
 
     def botStop(self):
@@ -99,6 +99,13 @@ class BotHelper:
             except telegram.error.NetworkError:
                 time.sleep(0.1)
                 continue
+
+    def checkBotRestart(self):
+        if os.path.exists(restartJsonFile):
+            restartJsonDict = jsonFileLoad(restartJsonFile)
+            self.bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
+                                     chat_id=restartJsonDict['chatId'], message_id=restartJsonDict['msgId'])
+            os.remove(restartJsonFile)
 
 
 class GetHelper:
@@ -1405,15 +1412,6 @@ def checkConfigVars():
                 raise KeyError
         except KeyError:
             configVars[optConfigVar] = optConfigVals[optConfigVars.index(optConfigVar)]
-
-
-def checkRestart():
-    global botHelper
-    if os.path.exists(restartJsonFile):
-        restartJsonDict = jsonFileLoad(restartJsonFile)
-        botHelper.bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
-                                      chat_id=restartJsonDict['chatId'], message_id=restartJsonDict['msgId'])
-        os.remove(restartJsonFile)
 
 
 def configHandler():
