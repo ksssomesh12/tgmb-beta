@@ -69,12 +69,26 @@ class BotHelper:
         unknownHandler = telegram.ext.MessageHandler(filters=telegram.ext.Filters.command, callback=unknownCallBack, run_async=True)
         self.dispatcher.add_handler(unknownHandler)
 
-    def updaterStart(self):
+    def botStart(self, handlerInfos: typing.Tuple):
+        self.subProcHelper.init()
+        self.checkApiStart()
+        # TODO: add checkAriaDaemonStart()
+        self.mirrorHelper.ariaHelper.startListener()
+        self.mirrorHelper.googleDriveHelper.authorizeApi()
+        self.addAllHandlers(*handlerInfos)
         self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=configVars[reqConfigVars[0]],
                                    webhook_url=f'http://{self.listenAddress}:{self.listenPort}/{configVars[reqConfigVars[0]]}')
+        self.mirrorHelper.mirrorListener.startWebhookServer()
+        logger.info("Bot Started !")
 
-    def updaterIdle(self):
+    def botIdle(self):
+        checkRestart()
         self.updater.idle()
+
+    def botStop(self):
+        self.subProcHelper.term()
+        self.mirrorHelper.mirrorListener.stopWebhookServer()
+        logger.info("Bot Stopped !")
 
     def checkApiStart(self):
         conSuccess = False

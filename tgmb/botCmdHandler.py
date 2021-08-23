@@ -149,3 +149,4 @@ cmdHandlerInfos: typing.Dict[str, typing.Dict[str, typing.Union[telegram.BotComm
      'topHandler': {'botCmd': BotCommands.Top, 'callBack': topCallBack}}
 convHandlers: typing.Dict[str, telegram.ext.ConversationHandler] = \
     {'configConvHandler': configConv.handler, 'logConvHandler': logConv.handler, 'mirrorConvHandler': mirrorConv.handler}
+handlerInfos: typing.Tuple = (cmdHandlerInfos, convHandlers, unknownCallBack)
