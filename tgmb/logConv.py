@@ -6,7 +6,7 @@ def stageZero(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
     chatId = update.message.chat.id
     msgId = update.message.message_id
     buttonList: typing.List[str] = \
-        [f'[{logFile}] [{getReadableSize(os.path.getsize(logFile))}]' for logFile in logFiles[0:3]]
+        [f'[{logFile}] [{botHelper.getHelper.readableSize(os.path.getsize(logFile))}]' for logFile in logFiles[0:3]]
     buttonList += ['All', 'Exit']
     sentMsgId = update.message.reply_text(text='Select:', reply_markup=InlineKeyboardMaker(buttonList).build(1)).message_id
     return FIRST

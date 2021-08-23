@@ -28,9 +28,8 @@ def helpCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
                               chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-# TODO: update stats msg
 def statsCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    botHelper.bot.sendMessage(text=getStatsMsg(), parse_mode='HTML', chat_id=update.message.chat_id,
+    botHelper.bot.sendMessage(text=botHelper.getHelper.statsMsg(), parse_mode='HTML', chat_id=update.message.chat_id,
                               reply_to_message_id=update.message.message_id)
 
 
@@ -73,7 +72,7 @@ def deleteCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    chatId, chatName, chatType = getChatDetails(update)
+    chatId, chatName, chatType = botHelper.getHelper.chatDetails(update)
     if str(chatId) in configVars[optConfigVars[0]].keys():
         replyTxt = f"Already Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     else:
@@ -85,7 +84,7 @@ def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    chatId, chatName, chatType = getChatDetails(update)
+    chatId, chatName, chatType = botHelper.getHelper.chatDetails(update)
     if str(chatId) in configVars[optConfigVars[0]].keys():
         updateAuthorizedChats(chatId, chatName, chatType, unauth=True)
         replyTxt = f"Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"

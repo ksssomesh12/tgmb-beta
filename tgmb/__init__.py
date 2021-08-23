@@ -45,6 +45,7 @@ class BotHelper:
         self.bot: telegram.Bot
         self.dispatcher: telegram.ext.Dispatcher
         self.updater: telegram.ext.Updater
+        self.getHelper = GetHelper(self)
         self.mirrorHelper = MirrorHelper(self)
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8443
@@ -83,6 +84,93 @@ class BotHelper:
             except telegram.error.NetworkError:
                 time.sleep(0.1)
                 continue
+
+
+class GetHelper:
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
+        self.sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+        self.progressUnits: typing.List[str] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█']
+
+    @staticmethod
+    def chatDetails(update: telegram.Update) -> (int, str, str):
+        if update.message.reply_to_message:
+            user = update.message.reply_to_message.from_user
+            return user.id, user.first_name, 'private'
+        else:
+            chat = update.effective_chat
+            return chat.id, (chat.first_name if chat.type == 'private' else chat.title), chat.type
+
+    @staticmethod
+    def fileNameEnv(fileName: str) -> str:
+        splitList = fileName.split('.')
+        fileIdEnvName = splitList[0]
+        if len(splitList) > 1:
+            for i in range(1, len(splitList)):
+                fileIdEnvName += splitList[i].capitalize()
+        return fileIdEnvName
+
+    @staticmethod
+    def fileHash(filePath: str) -> str:
+        hashSum = hashlib.sha256()
+        blockSize = 128 * hashSum.block_size
+        fileStream = open(filePath, 'rb')
+        fileChunk = fileStream.read(blockSize)
+        while fileChunk:
+            hashSum.update(fileChunk)
+            fileChunk = fileStream.read(blockSize)
+        return hashSum.hexdigest()
+
+    def progressBar(self, progress: float) -> str:
+        progressRounded = round(progress)
+        numFull = progressRounded // 8
+        numEmpty = (100 // 8) - numFull
+        partIndex = (progressRounded % 8) - 1
+        return f"{self.progressUnits[-1] * numFull}{(self.progressUnits[partIndex] if partIndex >= 0 else '')}{' ' * numEmpty}"
+
+    def readableSize(self, numBytes: int) -> str:
+        i = 0
+        if numBytes is None:
+            numBytes = 0
+        while numBytes >= 1024:
+            numBytes /= 1024
+            i += 1
+        return f'{round(numBytes, 2)} {self.sizeUnits[i]}'
+
+    @staticmethod
+    def readableTime(seconds: float) -> str:
+        readableTimeStr = ''
+        (numDays, remainderHours) = divmod(seconds, 86400)
+        numDays = int(numDays)
+        if numDays != 0:
+            readableTimeStr += f'{numDays}d'
+        (numHours, remainderMins) = divmod(remainderHours, 3600)
+        numHours = int(numHours)
+        if numHours != 0:
+            readableTimeStr += f'{numHours}h'
+        (numMins, remainderSecs) = divmod(remainderMins, 60)
+        numMins = int(numMins)
+        if numMins != 0:
+            readableTimeStr += f'{numMins}m'
+        numSecs = int(remainderSecs)
+        readableTimeStr += f'{numSecs}s'
+        return readableTimeStr
+
+    def statsMsg(self) -> str:
+        botUpTime = self.readableTime(time.time() - self.botHelper.startTime)
+        cpuUsage = psutil.cpu_percent(interval=0.5)
+        memoryUsage = psutil.virtual_memory().percent
+        diskUsageTotal, diskUsageUsed, diskUsageFree, diskUsage = psutil.disk_usage('.')
+        statsMsg = f'botUpTime: {botUpTime}\n' \
+                   f'cpuUsage: {cpuUsage}%\n' \
+                   f'memoryUsage: {memoryUsage}%\n' \
+                   f'diskUsage: {diskUsage}%\n' \
+                   f'Total: {self.readableSize(diskUsageTotal)} | ' \
+                   f'Used: {self.readableSize(diskUsageUsed)} | ' \
+                   f'Free: {self.readableSize(diskUsageFree)}\n' \
+                   f'dataDown: {self.readableSize(psutil.net_io_counters().bytes_recv)} | ' \
+                   f'dataUp: {self.readableSize(psutil.net_io_counters().bytes_sent)}\n'
+        return statsMsg
 
 
 class MirrorInfo:
@@ -784,7 +872,7 @@ class GoogleDriveHelper:
     def patchFile(self, filePath: str, fileId: str = ''):
         fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         if fileId == '':
-            fileId = envVars[getFileNameEnv(fileName)]
+            fileId = envVars[self.mirrorHelper.botHelper.getHelper.fileNameEnv(fileName)]
         fileOp = self.service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
@@ -982,14 +1070,14 @@ class StatusHelper:
             if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
                 if mirrorInfo.uid in self.mirrorHelper.ariaHelper.ariaGids.keys():
                     self.mirrorHelper.ariaHelper.updateProgress(mirrorInfo.uid)
-                    statusMsgTxt += f'S: {getReadableSize(mirrorInfo.sizeCurrent)} | ' \
-                                    f'{getReadableSize(mirrorInfo.sizeTotal)} | ' \
-                                    f'{getReadableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
-                                    f'P: {getProgressBar(mirrorInfo.progressPercent)} | ' \
+                    statusMsgTxt += f'S: {self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
+                                    f'{self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
+                                    f'{self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
+                                    f'P: {self.mirrorHelper.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)} | ' \
                                     f'{mirrorInfo.progressPercent}% | ' \
-                                    f'{getReadableSize(mirrorInfo.speedCurrent)}/s\n' \
-                                    f'T: {getReadableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
-                                    f'{getReadableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
+                                    f'{self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.speedCurrent)}/s\n' \
+                                    f'T: {self.mirrorHelper.botHelper.getHelper.readableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
+                                    f'{self.mirrorHelper.botHelper.getHelper.readableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
                     if mirrorInfo.isTorrent:
                         statusMsgTxt += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
         return statusMsgTxt
@@ -1208,7 +1296,7 @@ def threadWrapper(target: typing.Callable, *args: object, **kwargs: object) -> N
 
 def ariaDl(fileName: str):
     logger.debug(f"Starting Download: '{fileName}'...")
-    fileUrl = 'https://docs.google.com/uc?export=download&id={}'.format(envVars[getFileNameEnv(fileName)])
+    fileUrl = 'https://docs.google.com/uc?export=download&id={}'.format(envVars[botHelper.getHelper.fileNameEnv(fileName)])
     if os.path.exists(fileName):
         os.remove(fileName)
     subprocess.run(['aria2c', fileUrl, '--quiet=true', '--out=' + fileName])
@@ -1264,8 +1352,8 @@ def configHandler():
             exit(1)
         envVars = {**envVars, **jsonFileLoad(fileidJsonFile)}
         for configFile in configFiles:
-            fileHashInDict = envVars[getFileNameEnv(configFile) + 'Hash']
-            if not (os.path.exists(configFile) and fileHashInDict == getFileHash(configFile)):
+            fileHashInDict = envVars[botHelper.getHelper.fileNameEnv(configFile) + 'Hash']
+            if not (os.path.exists(configFile) and fileHashInDict == botHelper.getHelper.fileHash(configFile)):
                 threadInit(target=ariaDl, name=f'{configFile}-ariaDl', fileName=configFile)
         while runningThreads:
             time.sleep(0.1)
@@ -1288,92 +1376,6 @@ def fileBak(fileName: str):
         logger.error(FileNotFoundError)
         # TODO: remove exit maybe?
         exit(1)
-
-
-def getChatDetails(update: telegram.Update):
-    if update.message.reply_to_message:
-        user = update.message.reply_to_message.from_user
-        return user.id, user.first_name, 'private'
-    else:
-        chat = update.effective_chat
-        return chat.id, (chat.first_name if chat.type == 'private' else chat.title), chat.type
-
-
-def getFileNameEnv(fileName: str):
-    splitList = fileName.split('.')
-    fileIdEnvName = splitList[0]
-    if len(splitList) > 1:
-        for i in range(1, len(splitList)):
-            fileIdEnvName += splitList[i].capitalize()
-    return fileIdEnvName
-
-
-def getFileHash(filePath: str):
-    hashSum = hashlib.sha256()
-    blockSize = 128 * hashSum.block_size
-    fileStream = open(filePath, 'rb')
-    fileChunk = fileStream.read(blockSize)
-    while fileChunk:
-        hashSum.update(fileChunk)
-        fileChunk = fileStream.read(blockSize)
-    return hashSum.hexdigest()
-
-
-def getProgressBar(progress: float):
-    progressRounded = round(progress)
-    numFull = progressRounded // 8
-    numEmpty = (100 // 8) - numFull
-    partIndex = (progressRounded % 8) - 1
-    return f"{progressUnits[-1] * numFull}{(progressUnits[partIndex] if partIndex >= 0 else '')}{' ' * numEmpty}"
-
-
-# TODO: typecheck numBytes
-def getReadableSize(numBytes: float):
-    global sizeUnits
-    i = 0
-    if numBytes is not None:
-        while numBytes >= 1024:
-            numBytes /= 1024
-            i += 1
-    else:
-        numBytes = 0
-    return f'{round(numBytes, 2)} {sizeUnits[i]}'
-
-
-def getReadableTime(seconds: float):
-    readableTime = ''
-    (numDays, remainderHours) = divmod(seconds, 86400)
-    numDays = int(numDays)
-    if numDays != 0:
-        readableTime += f'{numDays}d'
-    (numHours, remainderMins) = divmod(remainderHours, 3600)
-    numHours = int(numHours)
-    if numHours != 0:
-        readableTime += f'{numHours}h'
-    (numMins, remainderSecs) = divmod(remainderMins, 60)
-    numMins = int(numMins)
-    if numMins != 0:
-        readableTime += f'{numMins}m'
-    numSecs = int(remainderSecs)
-    readableTime += f'{numSecs}s'
-    return readableTime
-
-
-def getStatsMsg():
-    botUpTime = getReadableTime(time.time() - botHelper.startTime)
-    cpuUsage = psutil.cpu_percent(interval=0.5)
-    memoryUsage = psutil.virtual_memory().percent
-    diskUsageTotal, diskUsageUsed, diskUsageFree, diskUsage = psutil.disk_usage('.')
-    statsMsg = f'botUpTime: {botUpTime}\n' \
-               f'cpuUsage: {cpuUsage}%\n' \
-               f'memoryUsage: {memoryUsage}%\n' \
-               f'diskUsage: {diskUsage}%\n' \
-               f'Total: {getReadableSize(diskUsageTotal)} | ' \
-               f'Used: {getReadableSize(diskUsageUsed)} | ' \
-               f'Free: {getReadableSize(diskUsageFree)}\n' \
-               f'dataDown: {getReadableSize(psutil.net_io_counters().bytes_recv)} | ' \
-               f'dataUp: {getReadableSize(psutil.net_io_counters().bytes_sent)}\n'
-    return statsMsg
 
 
 def jsonFileLoad(jsonFileName: str):
@@ -1405,9 +1407,9 @@ def updateFileidJson():
     global configFiles, envVars, fileidJsonFile
     fileidJsonDict: typing.Dict[str, str] = {}
     for file in configFiles:
-        fileNameEnv = getFileNameEnv(file)
+        fileNameEnv = botHelper.getHelper.fileNameEnv(file)
         fileHashEnv = fileNameEnv + 'Hash'
-        envVars[fileHashEnv] = getFileHash(os.path.join(envVars['currWorkDir'], file))
+        envVars[fileHashEnv] = botHelper.getHelper.fileHash(os.path.join(envVars['currWorkDir'], file))
         fileidJsonDict[fileNameEnv] = envVars[fileNameEnv]
         fileidJsonDict[fileHashEnv] = envVars[fileHashEnv]
     jsonFileWrite(fileidJsonFile, fileidJsonDict)
@@ -1435,8 +1437,6 @@ logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhoo
 logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>'
 logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
-sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
-progressUnits: typing.List[str] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█']
 archiveFormats: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
                                          'gztar': '.tar.gz', 'xztar': '.tar.xz'}
 
