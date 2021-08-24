@@ -44,7 +44,7 @@ def restartCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     logger.info('Restarting the Bot...')
     restartMsg = botHelper.bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
                                            reply_to_message_id=update.message.message_id)
-    jsonFileWrite(restartJsonFile, {'chatId': f'{restartMsg.chat_id}', 'msgId': f'{restartMsg.message_id}'})
+    botHelper.configHelper.jsonFileWrite(botHelper.restartJsonFile, {'chatId': f'{restartMsg.chat_id}', 'msgId': f'{restartMsg.message_id}'})
     # TODO: may be not restart all subprocesses on every restart?
     botHelper.subProcHelper.termProcs()
     time.sleep(5)
@@ -52,8 +52,8 @@ def restartCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 
 def statusCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
-    threadInit(target=botHelper.mirrorHelper.statusHelper.addStatus, name='statusCallBack-addStatus',
-               chatId=update.message.chat.id, msgId=update.message.message_id)
+    botHelper.threadingHelper.initThread(target=botHelper.mirrorHelper.statusHelper.addStatus, name='statusCallBack-addStatus',
+                                         chatId=update.message.chat.id, msgId=update.message.message_id)
 
 
 def cancelCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -73,10 +73,10 @@ def deleteCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     chatId, chatName, chatType = botHelper.getHelper.chatDetails(update)
-    if str(chatId) in configVars[optConfigVars[0]].keys():
+    if str(chatId) in botHelper.configHelper.configVars[botHelper.configHelper.optVars[0]].keys():
         replyTxt = f"Already Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     else:
-        updateAuthorizedChats(chatId, chatName, chatType, auth=True)
+        botHelper.configHelper.updateAuthorizedChats(chatId, chatName, chatType, auth=True)
         replyTxt = f"Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     logger.info(replyTxt)
     botHelper.bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
@@ -85,8 +85,8 @@ def authorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
 
 def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     chatId, chatName, chatType = botHelper.getHelper.chatDetails(update)
-    if str(chatId) in configVars[optConfigVars[0]].keys():
-        updateAuthorizedChats(chatId, chatName, chatType, unauth=True)
+    if str(chatId) in botHelper.configHelper.configVars[botHelper.configHelper.optVars[0]].keys():
+        botHelper.configHelper.updateAuthorizedChats(chatId, chatName, chatType, unauth=True)
         replyTxt = f"Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
     else:
         replyTxt = f"Already Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
@@ -97,16 +97,16 @@ def unauthorizeCallBack(update: telegram.Update, _: telegram.ext.CallbackContext
 
 def syncCallBack(update: telegram.Update, _: telegram.ext.CallbackContext):
     syncMsg: telegram.Message
-    if envVars['dynamicConfig']:
+    if botHelper.envVars['dynamicConfig']:
         syncMsgTxt = 'Syncing to Google Drive...'
         logger.info(syncMsgTxt)
         syncMsg = botHelper.bot.sendMessage(text=syncMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                             reply_to_message_id=update.message.message_id)
-        for fileName in configFiles:
-            logger.info(botHelper.mirrorHelper.googleDriveHelper.patchFile(f"{envVars['currWorkDir']}/{fileName}"))
-        updateFileidJson()
+        for configFile in botHelper.configHelper.configFiles:
+            logger.info(botHelper.mirrorHelper.googleDriveHelper.patchFile(f"{botHelper.envVars['currWorkDir']}/{configFile}"))
+        botHelper.configHelper.updateFileidJson()
         logger.info('Sync Completed !')
-        syncMsg.edit_text(f'Sync Completed !\n{configFiles}\nPlease /{BotCommands.Restart.command} !')
+        syncMsg.edit_text(f'Sync Completed !\n{botHelper.configHelper.configFiles}\nPlease /{BotCommands.Restart.command} !')
     else:
         syncMsgText = "Not Synced - Using Static Config !"
         logger.info(syncMsgText)

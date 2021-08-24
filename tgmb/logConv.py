@@ -23,7 +23,7 @@ def stageOne(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
             logger.info("Sent logFiles !")
         else:
             logFileIndex = int(query.data) - 1
-            botHelper.bot.sendDocument(document=f"file://{envVars['currWorkDir']}/{logFiles[logFileIndex]}",
+            botHelper.bot.sendDocument(document=f"file://{botHelper.envVars['currWorkDir']}/{logFiles[logFileIndex]}",
                                        filename=logFiles[logFileIndex], chat_id=chatId, reply_to_message_id=msgId, timeout=docSendTimeout)
             logger.info(f"Sent logFile: '{logFiles[logFileIndex]}' !")
         botHelper.bot.deleteMessage(chat_id=chatId, message_id=sentMsgId)

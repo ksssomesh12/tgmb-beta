@@ -5,8 +5,8 @@ def loadConfigDict():
     global configVarsEditable, configVarsNew
     configVarsEditable = {}
     configVarsNew = {}
-    configVarsEditable = jsonFileLoad(configJsonFile)
-    for key in [reqConfigVars[4], reqConfigVars[5], optConfigVars[0]]:
+    configVarsEditable = botHelper.configHelper.jsonFileLoad(botHelper.configHelper.configJsonFile)
+    for key in [botHelper.configHelper.reqVars[4], botHelper.configHelper.reqVars[5], botHelper.configHelper.optVars[0]]:
         if key in list(configVarsEditable.keys()):
             configVarsEditable.pop(key)
 
@@ -70,7 +70,7 @@ def proceedNewVal(query: telegram.CallbackQuery) -> int:
 def discardChanges(query: telegram.CallbackQuery) -> int:
     global configVarsNew
     configVarsNew = {}
-    logger.info(f"Owner '{query.from_user.first_name}' Discarded Changes Made to '{configJsonFile}' !")
+    logger.info(f"Owner '{query.from_user.first_name}' Discarded Changes Made to '{botHelper.configHelper.configJsonFile}' !")
     query.edit_message_text(text=f"Discarded Changes.",
                             reply_markup=InlineKeyboardMaker(['Start Over', 'Exit']).build(2))
     return SIXTH
@@ -80,9 +80,9 @@ def saveChanges(query: telegram.CallbackQuery) -> int:
     global configVarsNew
     query.edit_message_text(text=f"Saving Changes...")
     for key in list(configVarsNew.keys()):
-        configVars[key] = configVarsNew[key]
-    updateConfigJson()
-    logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{configJsonFile}' !")
+        botHelper.configHelper.configVars[key] = configVarsNew[key]
+    botHelper.configHelper.updateConfigJson()
+    logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{botHelper.configHelper.configJsonFile}' !")
     query.edit_message_text(text=f"Saved Changes.\nPlease /{BotCommands.Restart.command} to Load Changes.")
     return telegram.ext.ConversationHandler.END
 
@@ -93,7 +93,7 @@ def convEnd(query: telegram.CallbackQuery) -> int:
 
 
 def stageZero(update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
-    logger.info(f"Owner '{update.message.from_user.first_name}' is Editing '{configJsonFile}'...")
+    logger.info(f"Owner '{update.message.from_user.first_name}' is Editing '{botHelper.configHelper.configJsonFile}'...")
     loadConfigDict()
     return chooseKey(update=update)
 
