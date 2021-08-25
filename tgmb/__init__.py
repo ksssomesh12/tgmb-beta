@@ -154,6 +154,11 @@ class ConfigHelper:
             logger.error(f"Missing configFile: '{configFile}' ! Exiting...")
             exit(1)
 
+    def configFileSync(self, configFiles: typing.List[str]) -> None:
+        for configFile in configFiles:
+            logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile),
+                                                                                self.botHelper.envVars[self.botHelper.getHelper.fileIdKey(configFile)]))
+
     def configVarsCheck(self) -> None:
         for reqVar in self.reqVars:
             try:
@@ -211,8 +216,7 @@ class ConfigHelper:
                     os.path.join(self.botHelper.envVars['currWorkDir'], self.configJsonBakFile))
         self.jsonFileWrite(self.configJsonFile, {**self.jsonFileLoad(self.configJsonFile), **self.configVars})
         if self.botHelper.envVars['dynamicConfig']:
-            for configFile in [self.configJsonFile, self.configJsonBakFile]:
-                logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile)))
+            self.configFileSync([self.configJsonFile, self.configJsonBakFile])
             self.updateFileidJson()
 
     def updateFileidJson(self) -> None:
@@ -224,7 +228,7 @@ class ConfigHelper:
             fileidJsonDict[configFileIdKey] = self.botHelper.envVars[configFileIdKey]
             fileidJsonDict[configFileHashKey] = self.botHelper.envVars[configFileHashKey]
         self.jsonFileWrite(self.fileidJsonFile, fileidJsonDict)
-        logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], self.fileidJsonFile)))
+        self.configFileSync([self.fileidJsonFile])
 
 
 class GetHelper:
@@ -556,8 +560,7 @@ class BotCommandHelper:
             logger.info(replyMsgTxt)
             replyMsg = self.botHelper.bot.sendMessage(text=replyMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                                       reply_to_message_id=update.message.message_id)
-            for configFile in self.botHelper.configHelper.configFiles:
-                logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile)))
+            self.botHelper.configHelper.configFileSync(self.botHelper.configHelper.configFiles)
             self.botHelper.configHelper.updateFileidJson()
             logger.info('Sync Completed !')
             replyMsg.edit_text(f'Sync Completed !\n{self.botHelper.configHelper.configFiles}\nPlease /{self.RestartCmd.command} !')
@@ -1625,10 +1628,8 @@ class GoogleDriveHelper:
             totalSize = int(self.getMetadataById(sourceId, 'size'))
         return totalSize
 
-    def patchFile(self, filePath: str, fileId: str = '') -> str:
+    def patchFile(self, filePath: str, fileId: str) -> str:
         fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
-        if fileId == '':
-            fileId = self.mirrorHelper.botHelper.envVars[self.mirrorHelper.botHelper.getHelper.fileIdKey(fileName)]
         fileOp = self.service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
