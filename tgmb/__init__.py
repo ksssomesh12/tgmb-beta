@@ -460,7 +460,7 @@ class BotCommandHelper:
         self.unauthorizeCmdHandler = telegram.ext.CommandHandler(command=self.UnauthorizeCmd.command,
                                                                  callback=self.unauthorizeCallBack, run_async=True)
         self.syncCmdHandler = telegram.ext.CommandHandler(command=self.SyncCmd.command,
-                                                          callback=self.syncCallBack, run_async=True),
+                                                          callback=self.syncCallBack, run_async=True)
         self.topCmdHandler = telegram.ext.CommandHandler(command=self.TopCmd.command,
                                                          callback=self.topCallBack, run_async=True)
         self.cmdHandlers: typing.List[telegram.ext.CommandHandler] = \
