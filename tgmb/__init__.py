@@ -46,11 +46,11 @@ class BotHelper:
         self.bot: telegram.Bot
         self.dispatcher: telegram.ext.Dispatcher
         self.updater: telegram.ext.Updater
-        self.configHelper = ConfigHelper(self)
         self.getHelper = GetHelper(self)
+        self.threadingHelper = ThreadingHelper(self)
+        self.configHelper = ConfigHelper(self)
         self.mirrorHelper = MirrorHelper(self)
         self.subProcHelper = SubProcHelper(self)
-        self.threadingHelper = ThreadingHelper(self)
         self.botCmdHelper = BotCommandHelper(self)
         self.botConvHelper = BotConversationHelper(self)
         self.listenAddress: str = 'localhost'
