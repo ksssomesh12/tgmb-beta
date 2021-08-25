@@ -2014,5 +2014,3 @@ logger.add(sys.stderr, level='DEBUG', format=logDebugFormat)
 logger.add(logFiles[0], level='DEBUG', format=logDebugFormat, rotation='24h')
 logger.disable('apscheduler')
 logging.basicConfig(handlers=[InterceptHandler()], level=0)
-
-botHelper = BotHelper()
