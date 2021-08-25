@@ -1,8 +1,7 @@
 from . import *
-from . import botCmdHandler
 
 
 if __name__ == '__main__':
-    botHelper.botStart(botCmdHandler.handlerInfos)
+    botHelper.botStart()
     botHelper.botIdle()
     botHelper.botStop()

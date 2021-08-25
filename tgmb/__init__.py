@@ -51,6 +51,8 @@ class BotHelper:
         self.mirrorHelper = MirrorHelper(self)
         self.subProcHelper = SubProcHelper(self)
         self.threadingHelper = ThreadingHelper(self)
+        self.botCmdHelper = BotCommandHelper(self)
+        self.botConvHelper = BotConversationHelper(self)
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8443
         self.restartJsonFile = 'restart.json'
@@ -61,35 +63,29 @@ class BotHelper:
         self.bot = self.updater.bot
         self.initDlRootDir()
 
-    def addAllHandlers(self, cmdHandlerInfos: typing.Dict[str, typing.Dict[str, typing.Union[telegram.BotCommand, typing.Callable]]],
-                       convHandlers: typing.Dict[str, telegram.ext.ConversationHandler], unknownCallBack: typing.Callable) -> None:
-        cmdHandlers: typing.Dict[str, telegram.ext.CommandHandler] = {}
-        for cmdHandlerKey in list(cmdHandlerInfos.keys()):
-            cmdHandlerInfo: typing.Dict[str, typing.Union[telegram.BotCommand, typing.Callable]] = cmdHandlerInfos[cmdHandlerKey]
-            cmdHandlers[cmdHandlerKey] = telegram.ext.CommandHandler(command=cmdHandlerInfo['botCmd'].command,
-                                                                     callback=cmdHandlerInfo['callBack'], run_async=True)
-        for cmdHandler in list(cmdHandlers.values()):
+    def addAllHandlers(self) -> None:
+        for cmdHandler in self.botCmdHelper.cmdHandlers:
             self.dispatcher.add_handler(cmdHandler)
-        for convHandler in list(convHandlers.values()):
+        for convHandler in self.botConvHelper.convHandlers:
             self.dispatcher.add_handler(convHandler)
-        unknownHandler = telegram.ext.MessageHandler(filters=telegram.ext.Filters.command, callback=unknownCallBack, run_async=True)
+        unknownHandler = telegram.ext.MessageHandler(filters=telegram.ext.Filters.command,
+                                                     callback=self.botCmdHelper.unknownCallBack, run_async=True)
         self.dispatcher.add_handler(unknownHandler)
 
-    def botStart(self, handlerInfos: typing.Tuple) -> None:
+    def botStart(self) -> None:
         self.subProcHelper.initProcs()
         self.subProcHelper.checkAriaDaemonStatus()
         self.subProcHelper.checkBotApiServerStatus()
         self.mirrorHelper.ariaHelper.startListener()
         self.mirrorHelper.googleDriveHelper.authorizeApi()
-        self.addAllHandlers(*handlerInfos)
-        self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=self.configHelper.configVars[self.configHelper.reqVars[0]],
-                                   webhook_url=f'http://{self.listenAddress}:{self.listenPort}/{self.configHelper.configVars[self.configHelper.reqVars[0]]}')
+        self.addAllHandlers()
+        self.updaterStart()
         self.mirrorHelper.mirrorListener.startWebhookServer()
         logger.info("Bot Started !")
 
     def botIdle(self) -> None:
         self.checkBotRestart()
-        self.updater.idle()
+        self.updaterIdle()
 
     def botStop(self) -> None:
         self.subProcHelper.termProcs()
@@ -108,6 +104,13 @@ class BotHelper:
         if os.path.exists(self.envVars['dlRootDirPath']):
             shutil.rmtree(self.envVars['dlRootDirPath'])
         os.mkdir(self.envVars['dlRootDirPath'])
+
+    def updaterStart(self):
+        self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=self.configHelper.configVars[self.configHelper.reqVars[0]],
+                                   webhook_url=f'http://{self.listenAddress}:{self.listenPort}/{self.configHelper.configVars[self.configHelper.reqVars[0]]}')
+
+    def updaterIdle(self):
+        self.updater.idle()
 
 
 class ConfigHelper:
@@ -209,7 +212,7 @@ class ConfigHelper:
         self.jsonFileWrite(self.configJsonFile, {**self.jsonFileLoad(self.configJsonFile), **self.configVars})
         if self.botHelper.envVars['dynamicConfig']:
             for configFile in [self.configJsonFile, self.configJsonBakFile]:
-                logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(f"{os.path.join(self.botHelper.envVars['currWorkDir'], configFile)}"))
+                logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile)))
             self.updateFileidJson()
 
     def updateFileidJson(self) -> None:
@@ -412,6 +415,523 @@ class ThreadingHelper:
             raise
         self.runningThreads.remove(currentThread)
         logger.debug(f'Thread Ended: {currentThread.name} [runningThreads - {len(self.runningThreads)}]')
+
+
+class BotCommandHelper:
+    StartCmd = telegram.BotCommand(command='start', description='StartCommand')
+    HelpCmd = telegram.BotCommand(command='help', description='HelpCommand')
+    StatsCmd = telegram.BotCommand(command='stats', description='StatsCommand')
+    PingCmd = telegram.BotCommand(command='ping', description='PingCommand')
+    RestartCmd = telegram.BotCommand(command='restart', description='RestartCommand')
+    LogCmd = telegram.BotCommand(command='log', description='LogCommand')
+    MirrorCmd = telegram.BotCommand(command='mirror', description='MirrorCommand')
+    StatusCmd = telegram.BotCommand(command='status', description='StatusCommand')
+    CancelCmd = telegram.BotCommand(command='cancel', description='CancelCommand')
+    ListCmd = telegram.BotCommand(command='list', description='ListCommand')
+    DeleteCmd = telegram.BotCommand(command='delete', description='DeleteCommand')
+    AuthorizeCmd = telegram.BotCommand(command='authorize', description='AuthorizeCommand')
+    UnauthorizeCmd = telegram.BotCommand(command='unauthorize', description='UnauthorizeCommand')
+    SyncCmd = telegram.BotCommand(command='sync', description='SyncCommand')
+    TopCmd = telegram.BotCommand(command='top', description='TopCommand')
+    ConfigCmd = telegram.BotCommand(command='config', description='ConfigCommand')
+
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
+        self.startCmdHandler = telegram.ext.CommandHandler(command=self.StartCmd.command,
+                                                           callback=self.startCallBack, run_async=True)
+        self.helpCmdHandler = telegram.ext.CommandHandler(command=self.HelpCmd.command,
+                                                          callback=self.helpCallBack, run_async=True)
+        self.statsCmdHandler = telegram.ext.CommandHandler(command=self.StatsCmd.command,
+                                                           callback=self.statsCallBack, run_async=True)
+        self.pingCmdHandler = telegram.ext.CommandHandler(command=self.PingCmd.command,
+                                                          callback=self.pingCallBack, run_async=True)
+        self.restartCmdHandler = telegram.ext.CommandHandler(command=self.RestartCmd.command,
+                                                             callback=self.restartCallBack, run_async=True)
+        self.statusCmdHandler = telegram.ext.CommandHandler(command=self.StatusCmd.command,
+                                                            callback=self.statusCallBack, run_async=True)
+        self.cancelCmdHandler = telegram.ext.CommandHandler(command=self.CancelCmd.command,
+                                                            callback=self.cancelCallBack, run_async=True)
+        self.listCmdHandler = telegram.ext.CommandHandler(command=self.ListCmd.command,
+                                                          callback=self.listCallBack, run_async=True)
+        self.deleteCmdHandler = telegram.ext.CommandHandler(command=self.DeleteCmd.command,
+                                                            callback=self.deleteCallBack, run_async=True)
+        self.authorizeCmdHandler = telegram.ext.CommandHandler(command=self.AuthorizeCmd.command,
+                                                               callback=self.authorizeCallBack, run_async=True)
+        self.unauthorizeCmdHandler = telegram.ext.CommandHandler(command=self.UnauthorizeCmd.command,
+                                                                 callback=self.unauthorizeCallBack, run_async=True)
+        self.syncCmdHandler = telegram.ext.CommandHandler(command=self.SyncCmd.command,
+                                                          callback=self.syncCallBack, run_async=True),
+        self.topCmdHandler = telegram.ext.CommandHandler(command=self.TopCmd.command,
+                                                         callback=self.topCallBack, run_async=True)
+        self.cmdHandlers: typing.List[telegram.ext.CommandHandler] = \
+            [self.startCmdHandler, self.helpCmdHandler, self.statsCmdHandler, self.pingCmdHandler,
+             self.restartCmdHandler, self.statusCmdHandler, self.cancelCmdHandler, self.listCmdHandler,
+             self.deleteCmdHandler, self.authorizeCmdHandler, self.unauthorizeCmdHandler,
+             self.syncCmdHandler, self.topCmdHandler]
+
+    def startCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.bot.sendMessage(text=f'A Telegram Bot Written in Python to Mirror Files on the Internet to Google Drive.\n'
+                                            f'Use /{self.HelpCmd.command} for More Info.', parse_mode='HTML',
+                                       chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+
+    def helpCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.bot.sendMessage(text=f'/{self.StartCmd.command} {self.StartCmd.description}\n'
+                                            f'/{self.HelpCmd.command} {self.HelpCmd.description}\n'
+                                            f'/{self.StatsCmd.command} {self.StatsCmd.description}\n'
+                                            f'/{self.PingCmd.command} {self.PingCmd.description}\n'
+                                            f'/{self.RestartCmd.command} {self.RestartCmd.description}\n'
+                                            f'/{self.LogCmd.command} {self.LogCmd.description}\n'
+                                            f'/{self.MirrorCmd.command} {self.MirrorCmd.description}\n'
+                                            f'/{self.StatusCmd.command} {self.StatusCmd.description}\n'
+                                            f'/{self.CancelCmd.command} {self.CancelCmd.description}\n'
+                                            f'/{self.ListCmd.command} {self.ListCmd.description}\n'
+                                            f'/{self.DeleteCmd.command} {self.DeleteCmd.description}\n'
+                                            f'/{self.AuthorizeCmd.command} {self.AuthorizeCmd.description}\n'
+                                            f'/{self.UnauthorizeCmd.command} {self.UnauthorizeCmd.description}\n'
+                                            f'/{self.SyncCmd.command} {self.SyncCmd.description}\n'
+                                            f'/{self.TopCmd.command} {self.TopCmd.description}\n'
+                                            f'/{self.ConfigCmd.command} {self.ConfigCmd.description}\n', parse_mode='HTML',
+                                       chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+
+    def statsCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.bot.sendMessage(text=self.botHelper.getHelper.statsMsg(), parse_mode='HTML',
+                                       chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+
+    # TODO: CommandHandler for /ping
+    def pingCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.bot.sendMessage(text='PingCommand Test Message', parse_mode='HTML', chat_id=update.message.chat_id,
+                                       reply_to_message_id=update.message.message_id)
+
+    def restartCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        logger.info('Restarting the Bot...')
+        restartMsg: telegram.Message = self.botHelper.bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
+                                                                      reply_to_message_id=update.message.message_id)
+        self.botHelper.configHelper.jsonFileWrite(self.botHelper.restartJsonFile, {'chatId': f'{restartMsg.chat_id}', 'msgId': f'{restartMsg.message_id}'})
+        # TODO: may be not restart all subprocesses on every restart?
+        self.botHelper.subProcHelper.termProcs()
+        time.sleep(5)
+        os.execl(sys.executable, sys.executable, '-m', 'tgmb')
+
+    def statusCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.mirrorHelper.statusHelper.addStatus, name='statusCallBack-addStatus',
+                                                  chatId=update.message.chat.id, msgId=update.message.message_id)
+
+    def cancelCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.mirrorHelper.cancelMirror(update.message)
+
+    # TODO: CommandHandler for /list
+    def listCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.bot.sendMessage(text='ListCommand Test Message', parse_mode='HTML',
+                                       chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+
+    def deleteCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        self.botHelper.bot.sendMessage(text=self.botHelper.mirrorHelper.googleDriveHelper.deleteByUrl(update.message.text.split(' ')[1].strip()),
+                                       parse_mode='HTML', chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+
+    def authorizeCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        chatId, chatName, chatType = self.botHelper.getHelper.chatDetails(update)
+        if str(chatId) in self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]].keys():
+            replyTxt = f"Already Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
+        else:
+            self.botHelper.configHelper.updateAuthorizedChats(chatId, chatName, chatType, auth=True)
+            replyTxt = f"Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
+        logger.info(replyTxt)
+        self.botHelper.bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
+                                       reply_to_message_id=update.message.message_id)
+
+    def unauthorizeCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        chatId, chatName, chatType = self.botHelper.getHelper.chatDetails(update)
+        if str(chatId) in self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]].keys():
+            self.botHelper.configHelper.updateAuthorizedChats(chatId, chatName, chatType, unauth=True)
+            replyTxt = f"Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
+        else:
+            replyTxt = f"Already Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
+        logger.info(replyTxt)
+        self.botHelper.bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
+                                       reply_to_message_id=update.message.message_id)
+
+    def syncCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        if self.botHelper.envVars['dynamicConfig']:
+            replyMsgTxt = 'Syncing to Google Drive...'
+            logger.info(replyMsgTxt)
+            replyMsg = self.botHelper.bot.sendMessage(text=replyMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
+                                                      reply_to_message_id=update.message.message_id)
+            for configFile in self.botHelper.configHelper.configFiles:
+                logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile)))
+            self.botHelper.configHelper.updateFileidJson()
+            logger.info('Sync Completed !')
+            replyMsg.edit_text(f'Sync Completed !\n{self.botHelper.configHelper.configFiles}\nPlease /{self.RestartCmd.command} !')
+        else:
+            replyMsgTxt = "Not Synced - Using Static Config !"
+            logger.info(replyMsgTxt)
+            self.botHelper.bot.sendMessage(text=replyMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
+                                           reply_to_message_id=update.message.message_id)
+
+    # TODO: format this properly later or else remove from release
+    def topCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        topMsg = ''
+        tgmbProc = psutil.Process(os.getpid())
+        ariaDaemonProc = psutil.Process(self.botHelper.subProcHelper.ariaDaemon.pid)
+        botApiServerProc = psutil.Process(self.botHelper.subProcHelper.botApiServer.pid)
+        topMsg += f'{tgmbProc.name()}\n{tgmbProc.cpu_percent()}\n{tgmbProc.memory_percent()}\n'
+        topMsg += f'{ariaDaemonProc.name()}\n{ariaDaemonProc.cpu_percent()}\n{ariaDaemonProc.memory_percent()}\n'
+        topMsg += f'{botApiServerProc.name()}\n{botApiServerProc.cpu_percent()}\n{botApiServerProc.memory_percent()}\n'
+        self.botHelper.bot.sendMessage(text=topMsg, parse_mode='HTML', chat_id=update.message.chat_id,
+                                       reply_to_message_id=update.message.message_id)
+
+    def unknownCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
+        if not '@' in update.message.text.split(' ')[0]:
+            self.botHelper.bot.sendMessage(text='Sorry, the command is not registered with a CommandHandler !', parse_mode='HTML',
+                                           chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+
+
+class BotConversationHelper:
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
+        self.configConv = ConfigConversation(self.botHelper)
+        self.logConv = LogConversation(self.botHelper)
+        self.mirrorConv = MirrorConversation(self.botHelper)
+        self.convHandlers: typing.List[telegram.ext.ConversationHandler] = \
+            [self.configConv.handler, self.logConv.handler, self.mirrorConv.handler]
+
+
+class ConfigConversation:
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
+        self.configVarsEditable: typing.Dict
+        self.configVarsNew: typing.Dict[str, str]
+        self.tempKeyIndex: int
+        self.tempKey: str
+        self.tempVal: str
+        self.newValMsg: telegram.Message
+        self.FIRST, self.SECOND, self.THIRD, self.FOURTH, self.FIFTH, self.SIXTH = range(6)
+        # TODO: filter - add owner_filter
+        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.botCmdHelper.ConfigCmd.command, self.stageZero)
+        self.handler = telegram.ext.ConversationHandler(entry_points=[self.cmdHandler], fallbacks=[self.cmdHandler],
+                                                        states={
+                                                            # ZEROTH
+                                                            # Choose Environment Variable
+                                                            self.FIRST: [telegram.ext.CallbackQueryHandler(self.stageOne)],
+                                                            # Show Existing Value
+                                                            self.SECOND: [telegram.ext.CallbackQueryHandler(self.stageTwo)],
+                                                            # Capture New Value for Environment Variable
+                                                            self.THIRD: [
+                                                                telegram.ext.CallbackQueryHandler(self.stageThree),
+                                                                telegram.ext.MessageHandler(telegram.ext.Filters.text, self.newVal)
+                                                            ],
+                                                            # Verify New Value
+                                                            self.FOURTH: [telegram.ext.CallbackQueryHandler(self.stageFour)],
+                                                            # Show All Changes and Proceed
+                                                            self.FIFTH: [telegram.ext.CallbackQueryHandler(self.stageFive)],
+                                                            # Save or Discard Changes
+                                                            self.SIXTH: [telegram.ext.CallbackQueryHandler(self.stageSix)]
+                                                            # Exit or Start Over
+                                                            },
+                                                        conversation_timeout=120, run_async=True)
+
+    def stageZero(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        logger.info(f"Owner '{update.message.from_user.first_name}' is Editing '{self.botHelper.configHelper.configJsonFile}'...")
+        self.loadConfigDict()
+        return self.chooseKey(update=update)
+
+    def stageOne(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        return self.viewVal(query)
+
+    def stageTwo(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            return self.editVal(query)
+        if query.data == '2':
+            return self.chooseKey(query=query)
+
+    def stageThree(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            return self.verifyNewVal(query)
+        if query.data == '2':
+            return self.editVal(query)
+
+    def stageFour(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            return self.proceedNewVal(query)
+        if query.data == '2':
+            return self.chooseKey(query=query)
+
+    def stageFive(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            return self.saveChanges(query)
+        if query.data == '2':
+            return self.discardChanges(query)
+        if query.data == '3':
+            return self.chooseKey(query=query)
+
+    def stageSix(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            self.loadConfigDict()
+            return self.chooseKey(query=query)
+        if query.data == '2':
+            return self.convEnd(query)
+
+    def loadConfigDict(self):
+        self.resetAllDat()
+        self.configVarsEditable = self.botHelper.configHelper.jsonFileLoad(self.botHelper.configHelper.configJsonFile)
+        for key in [self.botHelper.configHelper.reqVars[4], self.botHelper.configHelper.reqVars[5], self.botHelper.configHelper.optVars[0]]:
+            if key in list(self.configVarsEditable.keys()):
+                self.configVarsEditable.pop(key)
+
+    def chooseKey(self, update: telegram.Update = None, query: telegram.CallbackQuery = None) -> int:
+        self.tempKey, self.tempVal = '', ''
+        if query is None:
+            update.message.reply_text(text="Select an Environment Variable:",
+                                      reply_markup=InlineKeyboardMaker(list(self.configVarsEditable.keys()) + ['Exit']).build(1))
+        if update is None:
+            query.edit_message_text(text="Select an Environment Variable:",
+                                    reply_markup=InlineKeyboardMaker(list(self.configVarsEditable.keys()) + ['Exit']).build(1))
+        return self.FIRST
+
+    def viewVal(self, query: telegram.CallbackQuery) -> int:
+        self.tempKeyIndex = int(query.data) - 1
+        if self.tempKeyIndex != len(list(self.configVarsEditable.keys())):
+            self.tempKey = list(self.configVarsEditable.keys())[self.tempKeyIndex]
+            query.edit_message_text(text=f'"{self.tempKey}" = "{self.configVarsEditable[self.tempKey]}"',
+                                    reply_markup=InlineKeyboardMaker(['Edit', 'Back']).build(2))
+            return self.SECOND
+        else:
+            return self.convEnd(query)
+
+    def editVal(self, query: telegram.CallbackQuery) -> int:
+        query.edit_message_text(text=f'Send New Value for "{self.tempKey}":',
+                                reply_markup=InlineKeyboardMaker(['Ok', 'Back']).build(2))
+        return self.THIRD
+
+    def newVal(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> None:
+        self.newValMsg = update.message
+        self.tempVal = self.newValMsg['text']
+
+    def verifyNewVal(self, query: telegram.CallbackQuery) -> int:
+        self.botHelper.bot.deleteMessage(chat_id=self.newValMsg.chat_id, message_id=self.newValMsg.message_id)
+        query.edit_message_text(text=f'Entered Value is:\n\n"{self.tempVal}"',
+                                reply_markup=InlineKeyboardMaker(['Update Value', 'Back']).build(2))
+        return self.FOURTH
+
+    def proceedNewVal(self, query: telegram.CallbackQuery) -> int:
+        self.configVarsNew[self.tempKey] = self.tempVal
+        buttonList = ['Save Changes', 'Discard Changes', 'Change Another Value']
+        replyStr = ''
+        for i in range(len(list(self.configVarsNew.keys()))):
+            replyStr += f'{list(self.configVarsNew.keys())[i]} = "{list(self.configVarsNew.values())[i]}"' + '\n'
+        query.edit_message_text(text=replyStr, reply_markup=InlineKeyboardMaker(buttonList).build(1))
+        return self.FIFTH
+
+    def discardChanges(self, query: telegram.CallbackQuery) -> int:
+        self.configVarsNew = {}
+        logger.info(f"Owner '{query.from_user.first_name}' Discarded Changes Made to '{self.botHelper.configHelper.configJsonFile}' !")
+        query.edit_message_text(text=f"Discarded Changes.", reply_markup=InlineKeyboardMaker(['Start Over', 'Exit']).build(2))
+        return self.SIXTH
+
+    def saveChanges(self, query: telegram.CallbackQuery) -> int:
+        query.edit_message_text(text=f"Saving Changes...")
+        for configVarKey in list(self.configVarsNew.keys()):
+            self.botHelper.configHelper.configVars[configVarKey] = self.configVarsNew[configVarKey]
+        self.botHelper.configHelper.updateConfigJson()
+        logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{self.botHelper.configHelper.configJsonFile}' !")
+        query.edit_message_text(text=f"Saved Changes.\nPlease /{self.botHelper.botCmdHelper.RestartCmd.command} to Load Changes.")
+        return telegram.ext.ConversationHandler.END
+
+    def convEnd(self, query: telegram.CallbackQuery) -> int:
+        self.resetAllDat()
+        query.edit_message_text(text=f"Exited Config Editor.")
+        return telegram.ext.ConversationHandler.END
+
+    def resetAllDat(self) -> None:
+        self.configVarsEditable = {}
+        self.configVarsNew = {}
+        self.tempKeyIndex = 0
+        self.tempKey = ''
+        self.tempVal = ''
+
+
+class LogConversation:
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
+        self.chatId: int
+        self.msgId: int
+        self.sentMsgId: int
+        self.docSendTimeout: int = 600
+        self.FIRST = range(1)[0]
+        # TODO: filter - restrict to user who sent LogCommand
+        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.botCmdHelper.LogCmd.command, self.stageZero)
+        self.handler = telegram.ext.ConversationHandler(entry_points=[self.cmdHandler], fallbacks=[self.cmdHandler],
+                                                        states={self.FIRST: [telegram.ext.CallbackQueryHandler(self.stageOne)]},
+                                                        conversation_timeout=120, run_async=True)
+
+    def stageZero(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        self.chatId = update.message.chat.id
+        self.msgId = update.message.message_id
+        buttonList: typing.List[str] = \
+            [f'[{logFile}] [{self.botHelper.getHelper.readableSize(os.path.getsize(logFile))}]' for logFile in logFiles[0:3]]
+        buttonList += ['All', 'Exit']
+        self.sentMsgId = update.message.reply_text(text='Select:', reply_markup=InlineKeyboardMaker(buttonList).build(1)).message_id
+        return self.FIRST
+
+    def stageOne(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data in ['1', '2', '3', '4']:
+            query.edit_message_text(text='Uploading logFiles...')
+            if query.data == '4':
+                self.botHelper.bot.sendMediaGroup(media=[telegram.InputMediaDocument(logFile) for logFile in logFiles[0:3]],
+                                                  timeout=self.docSendTimeout, chat_id=self.chatId, reply_to_message_id=self.msgId)
+                logger.info("Sent logFiles !")
+            else:
+                logFileIndex = int(query.data) - 1
+                self.botHelper.bot.sendDocument(document=f"file://{self.botHelper.envVars['currWorkDir']}/{logFiles[logFileIndex]}",
+                                                filename=logFiles[logFileIndex], timeout=self.docSendTimeout,
+                                                chat_id=self.chatId, reply_to_message_id=self.msgId)
+                logger.info(f"Sent logFile: '{logFiles[logFileIndex]}' !")
+            self.botHelper.bot.deleteMessage(chat_id=self.chatId, message_id=self.sentMsgId)
+        if query.data == '5':
+            query.edit_message_text(text='Exited.')
+        return telegram.ext.ConversationHandler.END
+
+
+class MirrorConversation:
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
+        self.isValidDl: bool
+        self.mirrorInfo: MirrorInfo
+        self.FIRST, self.SECOND, self.THIRD, self.FOURTH, self.FIFTH = range(5)
+        # TODO: filter - restrict to user who sent MirrorCommand
+        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.botCmdHelper.MirrorCmd.command, self.stageZero)
+        self.handler = telegram.ext.ConversationHandler(entry_points=[self.cmdHandler], fallbacks=[self.cmdHandler],
+                                                        states={
+                                                            # ZEROTH
+                                                            # Choose to Modify or Use Default Values
+                                                            self.FIRST: [telegram.ext.CallbackQueryHandler(self.stageOne)],
+                                                            # Choose Upload Location
+                                                            self.SECOND: [telegram.ext.CallbackQueryHandler(self.stageTwo)],
+                                                            # Choose googleDriveUploadFolder
+                                                            self.THIRD: [telegram.ext.CallbackQueryHandler(self.stageThree)],
+                                                            # Choose Compress / Decompress
+                                                            self.FOURTH: [telegram.ext.CallbackQueryHandler(self.stageFour)],
+                                                            # Confirm and Proceed / Cancel
+                                                            self.FIFTH: [telegram.ext.CallbackQueryHandler(self.stageFive)]
+                                                        },
+                                                        conversation_timeout=120, run_async=True)
+
+    def stageZero(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        self.isValidDl, self.mirrorInfo = self.botHelper.mirrorHelper.genMirrorInfo(update.message)
+        if self.isValidDl:
+            # <setDefaults>
+            self.mirrorInfo.isGoogleDriveUpload = True
+            self.mirrorInfo.googleDriveUploadFolderId = \
+            list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].keys())[0]
+            # </setDefaults>
+            update.message.reply_text(text=self.getMirrorInfoStr(), reply_to_message_id=update.message.message_id,
+                                      reply_markup=InlineKeyboardMaker(['Use Defaults', 'Customize']).build(1))
+            return self.FIRST
+        if not self.isValidDl:
+            update.message.reply_text(text='No Valid Link Provided !', reply_to_message_id=update.message.message_id)
+            return telegram.ext.ConversationHandler.END
+
+    def stageOne(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            logger.info(f"addMirror - ['{self.mirrorInfo.downloadUrl}']")
+            self.botHelper.mirrorHelper.addMirror(self.mirrorInfo)
+            query.edit_message_text(text='addMirror Succeeded !')
+            return telegram.ext.ConversationHandler.END
+        elif query.data == '2':
+            buttonList = ['Google Drive', 'Mega', 'Telegram']
+            query.edit_message_text(text='Choose Upload Location:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
+            return self.SECOND
+
+    def stageTwo(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            buttonList = [*list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].values())]
+            query.edit_message_text(text='Choose `googleDriveUploadFolder`:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
+            return self.THIRD
+        elif query.data in ['2', '3']:
+            self.mirrorInfo.isGoogleDriveUpload = False
+            self.mirrorInfo.googleDriveUploadFolderId = ''
+            if query.data == '2':
+                self.mirrorInfo.isMegaUpload = True
+            elif query.data == '3':
+                self.mirrorInfo.isTelegramUpload = True
+            buttonList = ['isCompress', 'isDecompress', 'Skip']
+            query.edit_message_text(text='Choose:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
+            return self.FOURTH
+
+    def stageThree(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        self.mirrorInfo.googleDriveUploadFolderId = \
+        list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].keys())[(int(query.data) - 1)]
+        buttonList = ['isCompress', 'isDecompress', 'Skip']
+        query.edit_message_text(text='Choose:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
+        return self.FOURTH
+
+    def stageFour(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            self.mirrorInfo.isCompress = True
+        elif query.data == '2':
+            self.mirrorInfo.isDecompress = True
+        buttonList = ['Proceed', 'Cancel']
+        query.edit_message_text(text=self.getMirrorInfoStr(), reply_markup=InlineKeyboardMaker(buttonList).build(1))
+        return self.FIFTH
+
+    def stageFive(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
+        query = update.callback_query
+        query.answer()
+        if query.data == '1':
+            logger.info(f"addMirror - ['{self.mirrorInfo.downloadUrl}']")
+            self.botHelper.mirrorHelper.addMirror(self.mirrorInfo)
+            query.edit_message_text(text='addMirror Succeeded !')
+        elif query.data == '2':
+            query.edit_message_text(text='addMirror Cancelled !')
+        return telegram.ext.ConversationHandler.END
+
+    # TODO: reduce this function code if possible
+    def getMirrorInfoStr(self):
+        mirrorInfoStr = f'[uid | {self.mirrorInfo.uid}]\n'
+        if self.mirrorInfo.isAriaDownload:
+            mirrorInfoStr += f'[isAriaDownload | True]\n'
+        elif self.mirrorInfo.isGoogleDriveDownload:
+            mirrorInfoStr += f'[isGoogleDriveDownload | True]\n'
+        elif self.mirrorInfo.isMegaDownload:
+            mirrorInfoStr += f'[isMegaDownload | True]\n'
+        elif self.mirrorInfo.isTelegramDownload:
+            mirrorInfoStr += f'[isTelegramDownload | True]\n'
+        elif self.mirrorInfo.isYouTubeDownload:
+            mirrorInfoStr += f'[isYouTubeDownload | True]\n'
+        if self.mirrorInfo.isGoogleDriveUpload:
+            mirrorInfoStr += f'[isGoogleDriveUpload | True]\n'
+        elif self.mirrorInfo.isMegaUpload:
+            mirrorInfoStr += f'[isMegaUpload | True]\n'
+        elif self.mirrorInfo.isTelegramUpload:
+            mirrorInfoStr += f'[isTelegramUpload | True]\n'
+        if self.mirrorInfo.isCompress:
+            mirrorInfoStr += f'[isCompress | True]\n'
+        elif self.mirrorInfo.isDecompress:
+            mirrorInfoStr += f'[isDecompress | True]\n'
+        if self.mirrorInfo.isGoogleDriveUpload:
+            mirrorInfoStr += f'[googleDriveUploadFolderId | {self.mirrorInfo.googleDriveUploadFolderId}]'
+        return mirrorInfoStr
 
 
 class MirrorInfo:
@@ -1443,41 +1963,6 @@ class DirectDownloadLinkException(Exception):
 
 class NotSupportedArchiveFormat(Exception):
     pass
-
-
-class BotCommands:
-    Start = telegram.BotCommand(command='start',
-                                description='StartCommand')
-    Help = telegram.BotCommand(command='help',
-                               description='HelpCommand')
-    Stats = telegram.BotCommand(command='stats',
-                                description='StatsCommand')
-    Ping = telegram.BotCommand(command='ping',
-                               description='PingCommand')
-    Restart = telegram.BotCommand(command='restart',
-                                  description='RestartCommand')
-    Log = telegram.BotCommand(command='log',
-                              description='LogCommand')
-    Mirror = telegram.BotCommand(command='mirror',
-                                 description='MirrorCommand')
-    Status = telegram.BotCommand(command='status',
-                                 description='StatusCommand')
-    Cancel = telegram.BotCommand(command='cancel',
-                                 description='CancelCommand')
-    List = telegram.BotCommand(command='list',
-                               description='ListCommand')
-    Delete = telegram.BotCommand(command='delete',
-                                 description='DeleteCommand')
-    Authorize = telegram.BotCommand(command='authorize',
-                                    description='AuthorizeCommand')
-    Unauthorize = telegram.BotCommand(command='unauthorize',
-                                      description='UnauthorizeCommand')
-    Sync = telegram.BotCommand(command='sync',
-                               description='SyncCommand')
-    Top = telegram.BotCommand(command='top',
-                              description='TopCommand')
-    Config = telegram.BotCommand(command='config',
-                                 description='ConfigCommand')
 
 
 class InlineKeyboardMaker:
