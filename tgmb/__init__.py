@@ -1319,7 +1319,7 @@ class MirrorHelper:
         try:
             mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
             mirrorInfo.tag = msg.from_user.username
-            mirrorInfo.googleDriveDownloadSourceId = self.getIdFromUrl(mirrorInfo.downloadUrl)
+            mirrorInfo.googleDriveDownloadSourceId = self.googleDriveHelper.getIdFromUrl(mirrorInfo.downloadUrl)
             if mirrorInfo.googleDriveDownloadSourceId != '':
                 mirrorInfo.isGoogleDriveDownload = True
             elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
@@ -1349,12 +1349,6 @@ class MirrorHelper:
         if not isValidDl:
             logger.info('No Valid Link Provided !')
         return isValidDl, mirrorInfo
-
-    @staticmethod
-    def getIdFromUrl(url: str) -> str:
-        if 'folders' in url or 'file' in url:
-            return re.search(UrlRegex.googleDrive, url).group(5)
-        return ''
 
 
 class AriaHelper:
@@ -1578,11 +1572,17 @@ class GoogleDriveHelper:
         return folderOp['id']
 
     def deleteByUrl(self, url: str) -> str:
-        contentId = self.mirrorHelper.getIdFromUrl(url)
+        contentId = self.getIdFromUrl(url)
         if contentId != '':
             self.service.files().delete(fileId=contentId, supportsAllDrives=True).execute()
             return f'Deleted: [{url}]'
         return 'Not a Valid Google Drive Link !'
+
+    @staticmethod
+    def getIdFromUrl(url: str) -> str:
+        if 'folders' in url or 'file' in url:
+            return re.search(UrlRegex.googleDrive, url).group(5)
+        return ''
 
     def getUpData(self, filePath: str, isResumable: bool) -> (str, str, typing.Dict, googleapiclient.http.MediaIoBaseUpload):
         fileName = filePath.split('/')[-1]
