@@ -1932,6 +1932,9 @@ class WebhookHandler(tornado.web.RequestHandler):
     def __init__(self, application: tornado.web.Application, request: tornado.httputil.HTTPServerRequest, **kwargs):
         super().__init__(application, request, **kwargs)
 
+    def data_received(self, chunk: bytes) -> typing.Optional[typing.Awaitable[None]]:
+        pass
+
     def initialize(self, mirrorHelper: 'MirrorHelper') -> None:
         self.mirrorHelper = mirrorHelper
 
