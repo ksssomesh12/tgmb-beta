@@ -40,7 +40,11 @@ import warnings
 import youtube_dl
 
 
-class BotHelper:
+class BaseHelper:
+    pass
+
+
+class BotHelper(BaseHelper):
     def __init__(self):
         self.envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
         self.bot: telegram.Bot
@@ -113,7 +117,7 @@ class BotHelper:
         self.updater.idle()
 
 
-class ConfigHelper:
+class ConfigHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.configJsonFile = 'config.json'
@@ -231,7 +235,7 @@ class ConfigHelper:
         self.configFileSync([self.fileidJsonFile])
 
 
-class GetHelper:
+class GetHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.keySuffixId: str = 'Id'
@@ -324,7 +328,7 @@ class GetHelper:
         return statsMsg
 
 
-class SubProcHelper:
+class SubProcHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.subProcs: typing.List[str] = ['aria2c', 'telegram-bot-a']
@@ -399,7 +403,7 @@ class SubProcHelper:
         self.killProcs()
 
 
-class ThreadingHelper:
+class ThreadingHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.runningThreads: typing.List[threading.Thread] = []
@@ -421,7 +425,7 @@ class ThreadingHelper:
         logger.debug(f'Thread Ended: {currentThread.name} [runningThreads - {len(self.runningThreads)}]')
 
 
-class BotCommandHelper:
+class BotCommandHelper(BaseHelper):
     StartCmd = telegram.BotCommand(command='start', description='StartCommand')
     HelpCmd = telegram.BotCommand(command='help', description='HelpCommand')
     StatsCmd = telegram.BotCommand(command='stats', description='StatsCommand')
@@ -588,17 +592,17 @@ class BotCommandHelper:
                                            chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-class BotConversationHelper:
+class BotConversationHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
-        self.configConv = ConfigConversation(self.botHelper)
-        self.logConv = LogConversation(self.botHelper)
-        self.mirrorConv = MirrorConversation(self.botHelper)
+        self.configConvHelper = ConfigConvHelper(self.botHelper)
+        self.logConvHelper = LogConvHelper(self.botHelper)
+        self.mirrorConvHelper = MirrorConvHelper(self.botHelper)
         self.convHandlers: typing.List[telegram.ext.ConversationHandler] = \
-            [self.configConv.handler, self.logConv.handler, self.mirrorConv.handler]
+            [self.configConvHelper.handler, self.logConvHelper.handler, self.mirrorConvHelper.handler]
 
 
-class ConfigConversation:
+class ConfigConvHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.configVarsEditable: typing.Dict
@@ -764,7 +768,7 @@ class ConfigConversation:
         self.tempVal = ''
 
 
-class LogConversation:
+class LogConvHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.chatId: int
@@ -808,7 +812,7 @@ class LogConversation:
         return telegram.ext.ConversationHandler.END
 
 
-class MirrorConversation:
+class MirrorConvHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.isValidDl: bool
@@ -1264,7 +1268,7 @@ class MirrorListener:
         self.mirrorHelper.mirrorInfos[uid].progressPercent = 0
 
 
-class MirrorHelper:
+class MirrorHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
         self.mirrorInfos: typing.Dict[str, MirrorInfo] = {}
@@ -1351,7 +1355,7 @@ class MirrorHelper:
         return isValidDl, mirrorInfo
 
 
-class AriaHelper:
+class AriaHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
         self.api: aria2p.API = aria2p.API(aria2p.Client(host="http://localhost", port=6800,
@@ -1418,7 +1422,7 @@ class AriaHelper:
         logger.debug(vars(self.getDlObj(gid)))
 
 
-class GoogleDriveHelper:
+class GoogleDriveHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
         self.authInfos: typing.List[str] = ['saJson', 'tokenJson']
@@ -1634,7 +1638,7 @@ class GoogleDriveHelper:
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
 
-class MegaHelper:
+class MegaHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
 
@@ -1651,7 +1655,7 @@ class MegaHelper:
         raise NotImplementedError
 
 
-class TelegramHelper:
+class TelegramHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
         self.uploadMaxSize: int = 2 * 1024 * 1024 * 1024
@@ -1719,7 +1723,7 @@ class TelegramHelper:
         return True
 
 
-class YouTubeHelper:
+class YouTubeHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
 
@@ -1738,7 +1742,7 @@ class YouTubeHelper:
             ytdl.download([videoUrl])
 
 
-class CompressionHelper:
+class CompressionHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
 
@@ -1760,7 +1764,7 @@ class CompressionHelper:
         shutil.rmtree(sourcePath) if os.path.isdir(sourcePath) else os.remove(sourcePath)
 
 
-class DecompressionHelper:
+class DecompressionHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
 
@@ -1787,7 +1791,7 @@ class DecompressionHelper:
         os.remove(archivePath)
 
 
-class StatusHelper:
+class StatusHelper(BaseHelper):
     def __init__(self, mirrorHelper: 'MirrorHelper'):
         self.mirrorHelper = mirrorHelper
         self.updaterLock = threading.Lock()
