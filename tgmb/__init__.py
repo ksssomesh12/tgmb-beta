@@ -54,6 +54,15 @@ class BotHelper(BaseHelper):
         self.threadingHelper = ThreadingHelper(self)
         self.botCmdHelper = BotCommandHelper(self)
         self.botConvHelper = BotConversationHelper(self)
+        self.ariaHelper = AriaHelper(self)
+        self.googleDriveHelper = GoogleDriveHelper(self)
+        self.megaHelper = MegaHelper(self)
+        self.telegramHelper = TelegramHelper(self)
+        self.youTubeHelper = YouTubeHelper(self)
+        self.compressionHelper = CompressionHelper(self)
+        self.decompressionHelper = DecompressionHelper(self)
+        self.statusHelper = StatusHelper(self)
+        self.mirrorListener = MirrorListener(self)
 
     def initHelper(self):
         self.envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
@@ -76,6 +85,14 @@ class BotHelper(BaseHelper):
         self.subProcHelper.initHelper()
         self.botCmdHelper.initHelper()
         self.botConvHelper.initHelper()
+        self.ariaHelper.initHelper()
+        self.googleDriveHelper.initHelper()
+        self.megaHelper.initHelper()
+        self.telegramHelper.initHelper()
+        self.youTubeHelper.initHelper()
+        self.compressionHelper.initHelper()
+        self.decompressionHelper.initHelper()
+        self.statusHelper.initHelper()
 
     def addAllHandlers(self) -> None:
         for cmdHandler in self.botCmdHelper.cmdHandlers:
@@ -91,11 +108,11 @@ class BotHelper(BaseHelper):
         self.subProcHelper.initProcs()
         self.subProcHelper.checkAriaDaemonStatus()
         self.subProcHelper.checkBotApiServerStatus()
-        self.mirrorHelper.ariaHelper.startListener()
-        self.mirrorHelper.googleDriveHelper.authorizeApi()
+        self.ariaHelper.startListener()
+        self.googleDriveHelper.authorizeApi()
         self.addAllHandlers()
         self.updaterStart()
-        self.mirrorHelper.mirrorListener.startWebhookServer()
+        self.mirrorListener.startWebhookServer()
         logger.info("Bot Started !")
 
     def botIdle(self) -> None:
@@ -104,7 +121,7 @@ class BotHelper(BaseHelper):
 
     def botStop(self) -> None:
         self.subProcHelper.termProcs()
-        self.mirrorHelper.mirrorListener.stopWebhookServer()
+        self.mirrorListener.stopWebhookServer()
         logger.info("Bot Stopped !")
 
     def checkBotRestart(self) -> None:
@@ -173,8 +190,8 @@ class ConfigHelper(BaseHelper):
 
     def configFileSync(self, configFiles: typing.List[str]) -> None:
         for configFile in configFiles:
-            logger.info(self.botHelper.mirrorHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile),
-                                                                                self.botHelper.envVars[self.botHelper.getHelper.fileIdKey(configFile)]))
+            logger.info(self.botHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile),
+                                                                   self.botHelper.envVars[self.botHelper.getHelper.fileIdKey(configFile)]))
 
     def configVarsCheck(self) -> None:
         for reqVar in self.reqVars:
@@ -542,7 +559,7 @@ class BotCommandHelper(BaseHelper):
         os.execl(sys.executable, sys.executable, '-m', 'tgmb')
 
     def statusCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
-        self.botHelper.threadingHelper.initThread(target=self.botHelper.mirrorHelper.statusHelper.addStatus, name='statusCallBack-addStatus',
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name='statusCallBack-addStatus',
                                                   chatId=update.message.chat.id, msgId=update.message.message_id)
 
     def cancelCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -554,7 +571,7 @@ class BotCommandHelper(BaseHelper):
                                        chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
     def deleteCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
-        self.botHelper.bot.sendMessage(text=self.botHelper.mirrorHelper.googleDriveHelper.deleteByUrl(update.message.text.split(' ')[1].strip()),
+        self.botHelper.bot.sendMessage(text=self.botHelper.googleDriveHelper.deleteByUrl(update.message.text.split(' ')[1].strip()),
                                        parse_mode='HTML', chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
     def authorizeCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -1067,8 +1084,8 @@ class MirrorStatus:
 
 
 class MirrorListener:
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
         self.webhookServer: WebhookServer
         self.downloadQueueSize: int = 3
         self.downloadQueueActive: int = 0
@@ -1108,9 +1125,9 @@ class MirrorListener:
                MirrorStatus.uploadError: self.onUploadError}
 
     def startWebhookServer(self, ready=None, forceEventLoop=False) -> None:
-        self.webhookServer = WebhookServer(self.mirrorHelper)
-        self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.webhookServer.serveForever, name='mirrorListener.webhookServer',
-                                                               forceEventLoop=forceEventLoop, ready=ready)
+        self.webhookServer = WebhookServer(self.botHelper)
+        self.botHelper.threadingHelper.initThread(target=self.webhookServer.serveForever, name='mirrorListener.webhookServer',
+                                                  forceEventLoop=forceEventLoop, ready=ready)
 
     def stopWebhookServer(self) -> None:
         if self.webhookServer:
@@ -1118,13 +1135,13 @@ class MirrorListener:
             self.webhookServer = None
 
     def updateStatus(self, uid: str, mirrorStatus: str) -> None:
-        self.mirrorHelper.mirrorInfos[uid].status = mirrorStatus
+        self.botHelper.mirrorHelper.mirrorInfos[uid].status = mirrorStatus
         data = {'mirrorUid': uid, 'mirrorStatus': mirrorStatus}
         headers = {'Content-Type': 'application/json'}
         requests.post(url=self.webhookServer.webhookUrl, data=json.dumps(data), headers=headers)
 
     def updateStatusCallback(self, uid: str) -> None:
-        mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
+        mirrorInfo: MirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[uid]
         logger.info(f'{mirrorInfo.uid} : {mirrorInfo.status}')
         self.statusCallBacks[mirrorInfo.status](mirrorInfo)
 
@@ -1135,14 +1152,14 @@ class MirrorListener:
     # TODO: improve method and maybe not use onCancelMirror callback in operationErrors and improve onOperationErrors
     def onCancelMirror(self, mirrorInfo: MirrorInfo) -> None:
         shutil.rmtree(mirrorInfo.path)
-        self.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
+        self.botHelper.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
 
     def onCompleteMirror(self, mirrorInfo: MirrorInfo) -> None:
         shutil.rmtree(mirrorInfo.path)
-        self.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
+        self.botHelper.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
         if mirrorInfo.isGoogleDriveUpload or mirrorInfo.isMegaUpload:
-            self.mirrorHelper.botHelper.bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
-                                                        parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
+            self.botHelper.bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
+                                                                  parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
 
     def onDownloadQueue(self, mirrorInfo: MirrorInfo) -> None:
         self.resetMirrorProgress(mirrorInfo.uid)
@@ -1157,20 +1174,20 @@ class MirrorListener:
     def onDownloadStart(self, mirrorInfo: MirrorInfo) -> None:
         os.mkdir(mirrorInfo.path)
         if mirrorInfo.isAriaDownload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.ariaHelper.addDownload,
-                                                                   name=f'{mirrorInfo.uid}-AriaDownload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.ariaHelper.addDownload,
+                                                      name=f'{mirrorInfo.uid}-AriaDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isGoogleDriveDownload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.googleDriveHelper.addDownload,
-                                                                   name=f'{mirrorInfo.uid}-GoogleDriveDownload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.googleDriveHelper.addDownload,
+                                                      name=f'{mirrorInfo.uid}-GoogleDriveDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isMegaDownload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.megaHelper.addDownload,
-                                                                   name=f'{mirrorInfo.uid}-MegaDownload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.megaHelper.addDownload,
+                                                      name=f'{mirrorInfo.uid}-MegaDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isTelegramDownload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.telegramHelper.addDownload,
-                                                                   name=f'{mirrorInfo.uid}-TelegramDownload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.telegramHelper.addDownload,
+                                                      name=f'{mirrorInfo.uid}-TelegramDownload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isYouTubeDownload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.youTubeHelper.addDownload,
-                                                                   name=f'{mirrorInfo.uid}-YouTubeDownload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.youTubeHelper.addDownload,
+                                                      name=f'{mirrorInfo.uid}-YouTubeDownload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.downloadProgress)
 
     def onDownloadProgress(self, mirrorInfo: MirrorInfo) -> None:
@@ -1205,8 +1222,8 @@ class MirrorListener:
             self.checkCompressionQueue()
 
     def onCompressionStart(self, mirrorInfo: MirrorInfo) -> None:
-        self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.compressionHelper.addCompression,
-                                                               name=f'{mirrorInfo.uid}-Compression', mirrorInfo=mirrorInfo)
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.compressionHelper.addCompression,
+                                                  name=f'{mirrorInfo.uid}-Compression', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.compressionProgress)
 
     def onCompressionProgress(self, mirrorInfo: MirrorInfo) -> None:
@@ -1241,8 +1258,8 @@ class MirrorListener:
             self.checkDecompressionQueue()
 
     def onDecompressionStart(self, mirrorInfo: MirrorInfo) -> None:
-        self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.decompressionHelper.addDecompression,
-                                                               name=f'{mirrorInfo.uid}-Decompression', mirrorInfo=mirrorInfo)
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.decompressionHelper.addDecompression,
+                                                  name=f'{mirrorInfo.uid}-Decompression', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionProgress)
 
     def onDecompressionProgress(self, mirrorInfo: MirrorInfo) -> None:
@@ -1273,14 +1290,14 @@ class MirrorListener:
 
     def onUploadStart(self, mirrorInfo: MirrorInfo) -> None:
         if mirrorInfo.isGoogleDriveUpload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.googleDriveHelper.addUpload,
-                                                                   name=f'{mirrorInfo.uid}-GoogleDriveUpload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.googleDriveHelper.addUpload,
+                                                      name=f'{mirrorInfo.uid}-GoogleDriveUpload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isMegaUpload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.megaHelper.addUpload,
-                                                                   name=f'{mirrorInfo.uid}-MegaUpload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.megaHelper.addUpload,
+                                                      name=f'{mirrorInfo.uid}-MegaUpload', mirrorInfo=mirrorInfo)
         if mirrorInfo.isTelegramUpload:
-            self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.telegramHelper.addUpload,
-                                                                   name=f'{mirrorInfo.uid}-TelegramUpload', mirrorInfo=mirrorInfo)
+            self.botHelper.threadingHelper.initThread(target=self.botHelper.telegramHelper.addUpload,
+                                                      name=f'{mirrorInfo.uid}-TelegramUpload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.uploadProgress)
 
     def onUploadProgress(self, mirrorInfo: MirrorInfo) -> None:
@@ -1299,45 +1316,25 @@ class MirrorListener:
         self.checkUploadQueue()
 
     def resetMirrorProgress(self, uid: str) -> None:
-        self.mirrorHelper.mirrorInfos[uid].timeEnd = 0
-        self.mirrorHelper.mirrorInfos[uid].progressPercent = 0
+        self.botHelper.mirrorHelper.mirrorInfos[uid].timeEnd = 0
+        self.botHelper.mirrorHelper.mirrorInfos[uid].progressPercent = 0
 
 
 class MirrorHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
-        self.ariaHelper = AriaHelper(self)
-        self.googleDriveHelper = GoogleDriveHelper(self)
-        self.megaHelper = MegaHelper(self)
-        self.telegramHelper = TelegramHelper(self)
-        self.youTubeHelper = YouTubeHelper(self)
-        self.compressionHelper = CompressionHelper(self)
-        self.decompressionHelper = DecompressionHelper(self)
-        self.statusHelper = StatusHelper(self)
 
     def initHelper(self):
         self.mirrorInfos: typing.Dict[str, MirrorInfo] = {}
         self.supportedArchiveFormats: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
                                                                'gztar': '.tar.gz', 'xztar': '.tar.xz'}
-        self.mirrorListener = MirrorListener(self)
-        self.initSubHelpers()
-
-    def initSubHelpers(self):
-        self.ariaHelper.initHelper()
-        self.googleDriveHelper.initHelper()
-        self.megaHelper.initHelper()
-        self.telegramHelper.initHelper()
-        self.youTubeHelper.initHelper()
-        self.compressionHelper.initHelper()
-        self.decompressionHelper.initHelper()
-        self.statusHelper.initHelper()
 
     def addMirror(self, mirrorInfo: MirrorInfo) -> None:
         logger.debug(vars(mirrorInfo))
         self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
         self.mirrorInfos[mirrorInfo.uid].timeStart = int(time.time())
-        self.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
-        self.botHelper.threadingHelper.initThread(target=self.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
+        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
                                                   chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
 
     def cancelMirror(self, msg: telegram.Message) -> None:
@@ -1363,7 +1360,7 @@ class MirrorHelper(BaseHelper):
             logger.info('No Valid Mirror Found !')
             return
         for uid in uids:
-            self.mirrorListener.updateStatus(uid, MirrorStatus.cancelMirror)
+            self.botHelper.mirrorListener.updateStatus(uid, MirrorStatus.cancelMirror)
 
     def genMirrorInfo(self, msg: telegram.Message) -> (bool, MirrorInfo):
         mirrorInfo = MirrorInfo(msg, self.botHelper.envVars['dlRootDirPath'])
@@ -1371,7 +1368,7 @@ class MirrorHelper(BaseHelper):
         try:
             mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
             mirrorInfo.tag = msg.from_user.username
-            mirrorInfo.googleDriveDownloadSourceId = self.googleDriveHelper.getIdFromUrl(mirrorInfo.downloadUrl)
+            mirrorInfo.googleDriveDownloadSourceId = self.botHelper.googleDriveHelper.getIdFromUrl(mirrorInfo.downloadUrl)
             if mirrorInfo.googleDriveDownloadSourceId != '':
                 mirrorInfo.isGoogleDriveDownload = True
             elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
@@ -1404,12 +1401,12 @@ class MirrorHelper(BaseHelper):
 
 
 class AriaHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         self.api: aria2p.API = aria2p.API(aria2p.Client(host="http://localhost", port=6800,
-                                                        secret=self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.optVars[1]]))
+                                                        secret=self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[1]]))
         self.ariaGids: typing.Dict[str, str] = {}
 
     def addDownload(self, mirrorInfo: MirrorInfo) -> None:
@@ -1450,7 +1447,7 @@ class AriaHelper(BaseHelper):
                 currVars[MirrorInfo.updatableVars[4]] = True
                 currVars[MirrorInfo.updatableVars[5]] = dlObj.num_seeders
                 currVars[MirrorInfo.updatableVars[6]] = dlObj.connections
-            self.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
+            self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
 
     def onDownloadStart(self, _: aria2p.API, gid: str) -> None:
         logger.debug(vars(self.getDlObj(gid)))
@@ -1463,7 +1460,7 @@ class AriaHelper(BaseHelper):
         if self.getDlObj(gid).followed_by_ids:
             self.ariaGids[self.getUid(gid)] = self.getDlObj(gid).followed_by_ids[0]
             return
-        self.mirrorHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str) -> None:
         logger.debug(vars(self.getDlObj(gid)))
@@ -1473,8 +1470,8 @@ class AriaHelper(BaseHelper):
 
 
 class GoogleDriveHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         self.authInfos: typing.List[str] = ['saJson', 'tokenJson']
@@ -1485,40 +1482,39 @@ class GoogleDriveHelper(BaseHelper):
         self.googleDriveFolderMimeType: str = 'application/vnd.google-apps.folder'
         self.chunkSize: int = 32 * 1024 * 1024
         self.service: typing.Any = None
-        if self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[0] and \
-                self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[0]]:
+        if self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[0] and \
+                self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[0]]:
             self.oauthCreds: google.oauth2.service_account.Credentials \
                 = google.oauth2.service_account.Credentials.\
-                from_service_account_info(self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[0]])
-        elif self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[1] and \
-                self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]]:
+                from_service_account_info(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[0]])
+        elif self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[1] and \
+                self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]]:
             self.oauthCreds: google.oauth2.credentials.Credentials \
                 = google.oauth2.credentials.Credentials.\
-                from_authorized_user_info(self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]], self.oauthScopes)
+                from_authorized_user_info(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]], self.oauthScopes)
         else:
             logger.error('No Valid googleDriveAuth in configJsonFile ! Exiting...')
             exit(1)
 
     def addDownload(self, mirrorInfo: MirrorInfo) -> None:
         sourceId = mirrorInfo.googleDriveDownloadSourceId
-        self.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]:
-                                                                      self.getSizeById(sourceId)})
+        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: self.getSizeById(sourceId)})
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
         if mirrorInfo.isGoogleDriveUpload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress):
             if isFolder:
                 folderId = self.cloneFolder(sourceFolderId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
+                self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
             else:
                 fileId = self.cloneFile(sourceFileId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
+                self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
         else:
             if isFolder:
                 self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path)
             else:
                 self.downloadFile(sourceFileId=sourceId, dlPath=mirrorInfo.path)
-        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1528,28 +1524,28 @@ class GoogleDriveHelper(BaseHelper):
             uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
             if os.path.isdir(uploadPath):
                 folderId = self.uploadFolder(folderPath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
+                self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
             if os.path.isfile(uploadPath):
                 fileId = self.uploadFile(filePath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
+                self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
         else:
-            time.sleep(self.mirrorHelper.statusHelper.statusUpdateInterval)
-        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
+            time.sleep(self.botHelper.statusHelper.statusUpdateInterval)
+        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
 
     def cancelUpload(self, uid: str) -> None:
         raise NotImplementedError
 
     def authorizeApi(self) -> None:
-        if self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[0]:
+        if self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[0]:
             self.buildService()
-        if self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[1]:
+        if self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authType'] == self.authTypes[1]:
             if not self.oauthCreds.valid:
                 if self.oauthCreds.expired and self.oauthCreds.refresh_token:
                     self.oauthCreds.refresh(google.auth.transport.requests.Request())
                     logger.info('Google Drive API Token Refreshed !')
-                    self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]] = json.loads(self.oauthCreds.to_json())
+                    self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]] = json.loads(self.oauthCreds.to_json())
                     self.buildService()
-                    self.mirrorHelper.botHelper.configHelper.updateConfigJson()
+                    self.botHelper.configHelper.updateConfigJson()
                 else:
                     logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
@@ -1691,8 +1687,8 @@ class GoogleDriveHelper(BaseHelper):
 
 
 class MegaHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         pass
@@ -1711,8 +1707,8 @@ class MegaHelper(BaseHelper):
 
 
 class TelegramHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         self.uploadMaxSize: int = 2 * 1024 * 1024 * 1024
@@ -1722,10 +1718,10 @@ class TelegramHelper(BaseHelper):
         replyTo = mirrorInfo.msg.reply_to_message
         for media in [replyTo.document, replyTo.audio, replyTo.video]:
             if media:
-                self.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: media.file_size})
+                self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: media.file_size})
                 self.downloadMedia(media, mirrorInfo.path)
                 break
-        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1736,15 +1732,15 @@ class TelegramHelper(BaseHelper):
         if os.path.isfile(uploadPath):
             if not self.uploadFile(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
-                self.mirrorHelper.botHelper.bot.sendMessage(text='Files Larger Than 2GB Cannot Be Uploaded Yet !', parse_mode='HTML',
+                self.botHelper.bot.sendMessage(text='Files Larger Than 2GB Cannot Be Uploaded Yet !', parse_mode='HTML',
                                                             chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
         if os.path.isdir(uploadPath):
             if not self.uploadFolder(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
         if upResponse:
-            self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
+            self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
         if not upResponse:
-            self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
+            self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
 
     def cancelUpload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1755,8 +1751,8 @@ class TelegramHelper(BaseHelper):
 
     def uploadFile(self, filePath: str, chatId: int, msgId: int) -> bool:
         if os.path.getsize(filePath) < self.uploadMaxSize:
-            self.mirrorHelper.botHelper.bot.sendDocument(document=f'file://{filePath}', filename=filePath.split('/')[-1],
-                                                         chat_id=chatId, reply_to_message_id=msgId, timeout=self.maxTimeout)
+            self.botHelper.bot.sendDocument(document=f'file://{filePath}', filename=filePath.split('/')[-1],
+                                            chat_id=chatId, reply_to_message_id=msgId, timeout=self.maxTimeout)
             return True
         return False
 
@@ -1775,14 +1771,14 @@ class TelegramHelper(BaseHelper):
             skippedContentsMsg = 'Skipped Files Due to uploadMaxSize:\n'
             for content in skippedContents:
                 skippedContentsMsg += f'{content}\n'
-            self.mirrorHelper.botHelper.bot.sendMessage(text=skippedContentsMsg, parse_mode='HTML',
-                                                        chat_id=chatId, reply_to_message_id=msgId)
+            self.botHelper.bot.sendMessage(text=skippedContentsMsg, parse_mode='HTML',
+                                           chat_id=chatId, reply_to_message_id=msgId)
         return True
 
 
 class YouTubeHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         pass
@@ -1791,7 +1787,7 @@ class YouTubeHelper(BaseHelper):
         ytdlOpts: dict = {'format': 'best/bestvideo+bestaudio', 'logger': logger,
                           'outtmpl': f'{mirrorInfo.path}/%(title)s-%(id)s.f%(format_id)s.%(ext)s'}
         self.downloadVideo(mirrorInfo.downloadUrl, ytdlOpts)
-        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1803,21 +1799,21 @@ class YouTubeHelper(BaseHelper):
 
 
 class CompressionHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         pass
 
     def addCompression(self, mirrorInfo: MirrorInfo) -> None:
         self.compressSource(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
-        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
+        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
 
     def cancelCompression(self, uid: str) -> None:
         raise NotImplementedError
 
     def compressSource(self, sourcePath: str) -> None:
-        archiveFormat = list(self.mirrorHelper.supportedArchiveFormats.keys())[3]
+        archiveFormat = list(self.botHelper.mirrorHelper.supportedArchiveFormats.keys())[3]
         sourceTempPath = sourcePath + 'temp'
         sourceName = sourcePath.split('/')[-1]
         os.mkdir(sourceTempPath)
@@ -1828,44 +1824,44 @@ class CompressionHelper(BaseHelper):
 
 
 class DecompressionHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         pass
 
     def addDecompression(self, mirrorInfo: MirrorInfo) -> None:
         self.decompressArchive(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
-        self.mirrorHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
+        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
 
     def cancelDecompression(self, uid: str) -> None:
         raise NotImplementedError
 
     def decompressArchive(self, archivePath: str) -> None:
         archiveFormat = ''
-        for archiveFileExtension in self.mirrorHelper.supportedArchiveFormats.values():
+        for archiveFileExtension in self.botHelper.mirrorHelper.supportedArchiveFormats.values():
             if archivePath.endswith(archiveFileExtension):
-                for archiveFileFormat in self.mirrorHelper.supportedArchiveFormats.keys():
-                    if self.mirrorHelper.supportedArchiveFormats[archiveFileFormat] == archiveFileExtension:
+                for archiveFileFormat in self.botHelper.mirrorHelper.supportedArchiveFormats.keys():
+                    if self.botHelper.mirrorHelper.supportedArchiveFormats[archiveFileFormat] == archiveFileExtension:
                         archiveFormat = archiveFileFormat
                         break
                 break
         if archiveFormat == '':
             return
-        folderPath = archivePath.replace(self.mirrorHelper.supportedArchiveFormats[archiveFormat], '')
+        folderPath = archivePath.replace(self.botHelper.mirrorHelper.supportedArchiveFormats[archiveFormat], '')
         shutil.unpack_archive(archivePath, folderPath, archiveFormat)
         os.remove(archivePath)
 
 
 class StatusHelper(BaseHelper):
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
 
     def initHelper(self):
         self.updaterLock = threading.Lock()
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
-        self.statusUpdateInterval: int = int(self.mirrorHelper.botHelper.configHelper.configVars[self.mirrorHelper.botHelper.configHelper.optVars[3]])
+        self.statusUpdateInterval: int = int(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[3]])
         self.msgId: int = 0
         self.chatId: int = 0
         self.lastStatusMsgId: int = 0
@@ -1873,38 +1869,38 @@ class StatusHelper(BaseHelper):
 
     def addStatus(self, chatId: int, msgId: int) -> None:
         with self.updaterLock:
-            if self.mirrorHelper.mirrorInfos != {}:
+            if self.botHelper.mirrorHelper.mirrorInfos != {}:
                 self.isUpdateStatus = True
             else:
                 self.isUpdateStatus = False
             if self.lastStatusMsgId == 0:
                 self.isInitThread = True
             if self.lastStatusMsgId != 0:
-                self.mirrorHelper.botHelper.bot.deleteMessage(chat_id=self.chatId, message_id=self.lastStatusMsgId)
+                self.botHelper.bot.deleteMessage(chat_id=self.chatId, message_id=self.lastStatusMsgId)
             self.chatId = chatId
             self.msgId = msgId
-            self.lastStatusMsgId = self.mirrorHelper.botHelper.bot.sendMessage(text='...', parse_mode='HTML', chat_id=self.chatId,
-                                                                               reply_to_message_id=self.msgId).message_id
+            self.lastStatusMsgId = self.botHelper.bot.sendMessage(text='...', parse_mode='HTML', chat_id=self.chatId,
+                                                                  reply_to_message_id=self.msgId).message_id
             if self.isInitThread:
                 self.isInitThread = False
-                self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.updateStatusMsg, name='statusUpdaterStart')
+                self.botHelper.threadingHelper.initThread(target=self.updateStatusMsg, name='statusUpdaterStart')
 
     def getStatusMsgTxt(self) -> str:
         statusMsgTxt = ''
-        for uid in self.mirrorHelper.mirrorInfos.keys():
-            mirrorInfo: MirrorInfo = self.mirrorHelper.mirrorInfos[uid]
+        for uid in self.botHelper.mirrorHelper.mirrorInfos.keys():
+            mirrorInfo: MirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[uid]
             statusMsgTxt += f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
             if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
-                if mirrorInfo.uid in self.mirrorHelper.ariaHelper.ariaGids.keys():
-                    self.mirrorHelper.ariaHelper.updateProgress(mirrorInfo.uid)
-                    statusMsgTxt += f'S: {self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
-                                    f'{self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
-                                    f'{self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
-                                    f'P: {self.mirrorHelper.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)} | ' \
+                if mirrorInfo.uid in self.botHelper.ariaHelper.ariaGids.keys():
+                    self.botHelper.ariaHelper.updateProgress(mirrorInfo.uid)
+                    statusMsgTxt += f'S: {self.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
+                                    f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
+                                    f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
+                                    f'P: {self.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)} | ' \
                                     f'{mirrorInfo.progressPercent}% | ' \
-                                    f'{self.mirrorHelper.botHelper.getHelper.readableSize(mirrorInfo.speedCurrent)}/s\n' \
-                                    f'T: {self.mirrorHelper.botHelper.getHelper.readableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
-                                    f'{self.mirrorHelper.botHelper.getHelper.readableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
+                                    f'{self.botHelper.getHelper.readableSize(mirrorInfo.speedCurrent)}/s\n' \
+                                    f'T: {self.botHelper.getHelper.readableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
+                                    f'{self.botHelper.getHelper.readableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
                     if mirrorInfo.isTorrent:
                         statusMsgTxt += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
         return statusMsgTxt
@@ -1912,22 +1908,22 @@ class StatusHelper(BaseHelper):
     def updateStatusMsg(self) -> None:
         with self.updaterLock:
             if self.isUpdateStatus:
-                if self.mirrorHelper.mirrorInfos:
+                if self.botHelper.mirrorHelper.mirrorInfos:
                     statusMsgTxt = self.getStatusMsgTxt()
                     if statusMsgTxt != self.lastStatusMsgTxt:
-                        self.mirrorHelper.botHelper.bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
-                                                                        message_id=self.lastStatusMsgId)
+                        self.botHelper.bot.editMessageText(text=statusMsgTxt, parse_mode='HTML', chat_id=self.chatId,
+                                                           message_id=self.lastStatusMsgId)
                         self.lastStatusMsgTxt = statusMsgTxt
                         time.sleep(self.statusUpdateInterval - 1)
                     time.sleep(1)
-                    self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.updateStatusMsg, name='statusUpdaterContinue')
+                    self.botHelper.threadingHelper.initThread(target=self.updateStatusMsg, name='statusUpdaterContinue')
                     return
-                if not self.mirrorHelper.mirrorInfos:
+                if not self.botHelper.mirrorHelper.mirrorInfos:
                     self.isUpdateStatus = False
-                    self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.updateStatusMsg, name='statusUpdaterEnd')
+                    self.botHelper.threadingHelper.initThread(target=self.updateStatusMsg, name='statusUpdaterEnd')
                     return
             if not self.isUpdateStatus:
-                self.mirrorHelper.botHelper.bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
+                self.botHelper.bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
                                                                 chat_id=self.chatId, message_id=self.lastStatusMsgId)
                 self.resetAllDat()
 
@@ -1941,13 +1937,13 @@ class StatusHelper(BaseHelper):
 
 
 class WebhookServer:
-    def __init__(self, mirrorHelper: 'MirrorHelper'):
-        self.mirrorHelper = mirrorHelper
+    def __init__(self, botHelper: BotHelper):
+        self.botHelper = botHelper
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8448
         self.webhookPath: str = 'mirrorListener'
         self.webhookUrl: str = f'http://{self.listenAddress}:{self.listenPort}/{self.webhookPath}'
-        self.handlers = [(rf"/{self.webhookPath}/?", WebhookHandler, {'mirrorHelper': self.mirrorHelper})]
+        self.handlers = [(rf"/{self.webhookPath}/?", WebhookHandler, {'botHelper': self.botHelper})]
         self.webhookApp = WebhookApp(self.handlers)
         self.httpServer = tornado.httpserver.HTTPServer(self.webhookApp)
         self.loop: typing.Optional[tornado.ioloop.IOLoop] = None
@@ -2007,8 +2003,8 @@ class WebhookHandler(tornado.web.RequestHandler):
     def data_received(self, chunk: bytes) -> typing.Optional[typing.Awaitable[None]]:
         pass
 
-    def initialize(self, mirrorHelper: 'MirrorHelper') -> None:
-        self.mirrorHelper = mirrorHelper
+    def initialize(self, botHelper: BotHelper) -> None:
+        self.botHelper = botHelper
 
     def set_default_headers(self) -> None:
         self.set_header("Content-Type", 'application/json; charset="utf-8"')
@@ -2020,8 +2016,8 @@ class WebhookHandler(tornado.web.RequestHandler):
         data = json.loads(json_string)
         self.set_status(200)
         logger.debug(f'Webhook Received Data: {data}')
-        self.mirrorHelper.botHelper.threadingHelper.initThread(target=self.mirrorHelper.mirrorListener.updateStatusCallback,
-                                                               name=f"{data['mirrorUid']}-{data['mirrorStatus']}", uid=data['mirrorUid'])
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.mirrorListener.updateStatusCallback,
+                                                  name=f"{data['mirrorUid']}-{data['mirrorStatus']}", uid=data['mirrorUid'])
 
     def _validate_post(self) -> None:
         ct_header = self.request.headers.get("Content-Type", None)
