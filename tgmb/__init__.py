@@ -24,6 +24,7 @@ import random
 import re
 import requests
 import shutil
+import signal
 import string
 import subprocess
 import sys
@@ -65,7 +66,6 @@ class BotHelper(BaseHelper):
         self.configHelper = ConfigHelper(self)
         self.getHelper = GetHelper(self)
         self.mirrorHelper = MirrorHelper(self)
-        self.subProcHelper = SubProcHelper(self)
         self.threadingHelper = ThreadingHelper(self)
         self.botCmdHelper = BotCommandHelper(self)
         self.botConvHelper = BotConversationHelper(self)
@@ -81,23 +81,29 @@ class BotHelper(BaseHelper):
 
     def initHelper(self):
         self.envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
+        self.restartJsonFile = 'restart.json'
+        self.restartVars = (self.configHelper.jsonFileLoad(self.restartJsonFile) if os.path.exists(self.restartJsonFile) else {})
         self.initSubHelpers()
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8443
-        self.restartJsonFile = 'restart.json'
         self.startTime: float = time.time()
+        self.apiServerPid: int = 0
+        self.apiServerStartCmd: typing.List[str] = \
+            ['telegram-bot-api', '--local', '--verbosity=9',
+             f'--api-id={self.configHelper.configVars[self.configHelper.reqVars[2]]}',
+             f'--api-hash={self.configHelper.configVars[self.configHelper.reqVars[3]]}',
+             f'--log={os.path.join(self.envVars["currWorkDir"], logFiles[1])}']
         self.updater = telegram.ext.Updater(token=self.configHelper.configVars[self.configHelper.reqVars[0]],
                                             base_url=f'http://{self.listenAddress}:8081/bot')
         self.dispatcher = self.updater.dispatcher
         self.bot = self.updater.bot
-        self.initDlRootDir()
+        self.envVars['dlRootDirPath'] = os.path.join(self.envVars['currWorkDir'], self.configHelper.configVars[self.configHelper.optVars[2]])
 
     def initSubHelpers(self):
         self.getHelper.initHelper()
         self.threadingHelper.initHelper()
         self.configHelper.initHelper()
         self.mirrorHelper.initHelper()
-        self.subProcHelper.initHelper()
         self.botCmdHelper.initHelper()
         self.botConvHelper.initHelper()
         self.ariaHelper.initHelper()
@@ -109,6 +115,28 @@ class BotHelper(BaseHelper):
         self.decompressionHelper.initHelper()
         self.statusHelper.initHelper()
 
+    def apiServerStart(self) -> None:
+        if self.restartVars:
+            self.apiServerPid = self.restartVars['botApiServerPid']
+            logger.info(f'botApiServer Already Running (pid {self.apiServerPid}) !')
+        else:
+            self.apiServerPid = subprocess.Popen(self.apiServerStartCmd).pid
+            logger.info(f'botApiServer Started (pid {self.apiServerPid}) !')
+
+    def apiServerCheck(self) -> None:
+        conSuccess = False
+        while not conSuccess:
+            try:
+                self.bot.getMe()
+                conSuccess = True
+            except telegram.error.NetworkError:
+                time.sleep(0.1)
+                continue
+
+    def apiServerStop(self) -> None:
+        os.kill(self.apiServerPid, signal.SIGTERM)
+        logger.info(f"botApiServer terminated (pid {self.apiServerPid})")
+
     def addAllHandlers(self) -> None:
         for cmdHandler in self.botCmdHelper.cmdHandlers:
             self.dispatcher.add_handler(cmdHandler)
@@ -119,10 +147,15 @@ class BotHelper(BaseHelper):
         self.dispatcher.add_handler(unknownHandler)
 
     def botStart(self) -> None:
-        self.subProcHelper.initProcs()
-        self.subProcHelper.checkAriaDaemonStatus()
-        self.subProcHelper.checkBotApiServerStatus()
+        self.cleanDlRootDir()
+        self.delLogFiles()
+        self.ariaHelper.daemonStart()
+        self.apiServerStart()
+        self.ariaHelper.daemonCheck()
+        self.apiServerCheck()
+        self.ariaHelper.globalOptsGet()
         self.ariaHelper.startListener()
+        self.ariaHelper.globalOptsSet()
         self.googleDriveHelper.authorizeApi()
         self.addAllHandlers()
         self.updaterStart()
@@ -130,26 +163,34 @@ class BotHelper(BaseHelper):
         logger.info("Bot Started !")
 
     def botIdle(self) -> None:
-        self.checkBotRestart()
+        self.onRestart()
         self.updaterIdle()
 
     def botStop(self) -> None:
-        self.subProcHelper.termProcs()
+        self.apiServerStop()
+        self.ariaHelper.daemonStop()
+        self.delLogFiles()
         self.mirrorListener.stopWebhookServer()
         logger.info("Bot Stopped !")
 
-    def checkBotRestart(self) -> None:
-        if os.path.exists(self.restartJsonFile):
-            restartJsonDict = self.configHelper.jsonFileLoad(self.restartJsonFile)
+    def onRestart(self) -> None:
+        if self.restartVars:
             self.bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
-                                     chat_id=restartJsonDict['chatId'], message_id=restartJsonDict['msgId'])
+                                     chat_id=self.restartVars['chatId'], message_id=self.restartVars['msgId'])
             os.remove(self.restartJsonFile)
 
-    def initDlRootDir(self) -> None:
-        self.envVars['dlRootDirPath'] = os.path.join(self.envVars['currWorkDir'], self.configHelper.configVars[self.configHelper.optVars[2]])
+    def cleanDlRootDir(self) -> None:
         if os.path.exists(self.envVars['dlRootDirPath']):
             shutil.rmtree(self.envVars['dlRootDirPath'])
         os.mkdir(self.envVars['dlRootDirPath'])
+
+    # TODO: delLogFiles on botStop(), with restartVars != {}
+    def delLogFiles(self) -> None:
+        if not self.restartVars:
+            for logFile in logFiles[1:]:
+                if os.path.exists(logFile):
+                    os.remove(logFile)
+                    logger.debug(f"Deleted: '{logFile}'")
 
     def updaterStart(self):
         self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=self.configHelper.configVars[self.configHelper.reqVars[0]],
@@ -172,8 +213,11 @@ class ConfigHelper(BaseHelper):
         self.configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]]] = {}
         self.reqVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                                'googleDriveAuth', 'googleDriveUploadFolderIds']
-        self.optVars: typing.List[str] = ['authorizedChats', 'ariaRpcSecret', 'dlRootDir', 'statusUpdateInterval']
-        self.optVals: typing.List[typing.Union[str, typing.Dict]] = [{}, 'tgmb-beta', 'dl', '5']
+        self.optVars: typing.List[str] = ['ariaGlobalOpts', 'authorizedChats', 'dlRootDir', 'statusUpdateInterval']
+        self.optVals: typing.List[typing.Union[str, typing.Dict]] = \
+            [{'allow-overwrite': 'true', 'bt-max-peers': '0', 'follow-torrent': 'mem',
+              'max-connection-per-server': '8', 'max-overall-upload-limit': '1K',
+              'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'}, {}, 'dl', '5']
         self.emptyVals: typing.List[typing.Union[str, typing.Dict]] = ['', ' ', {}]
         self.configVarsLoad()
         self.configVarsCheck()
@@ -190,7 +234,7 @@ class ConfigHelper(BaseHelper):
         timeElapsed = 0.1
         while timeElapsed <= float(self.botHelper.envVars['dlWaitTime']):
             if os.path.exists(configFile):
-                logger.debug(f"Downloaded '{configFile} !'")
+                logger.debug(f"Downloaded '{configFile}' !")
                 break
             else:
                 time.sleep(0.1)
@@ -254,9 +298,9 @@ class ConfigHelper(BaseHelper):
 
     def updateAuthorizedChats(self, chatId: int, chatName: str, chatType: str, auth: bool = None, unauth: bool = None) -> None:
         if auth:
-            self.configVars[self.optVars[0]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
+            self.configVars[self.optVars[1]][str(chatId)] = {"chatType": chatType, "chatName": chatName}
         if unauth:
-            self.configVars[self.optVars[0]].pop(str(chatId))
+            self.configVars[self.optVars[1]].pop(str(chatId))
         self.updateConfigJson()
 
     def updateConfigJson(self) -> None:
@@ -329,6 +373,10 @@ class GetHelper(BaseHelper):
         partIndex = (progressRounded % 8) - 1
         return f"{self.progressUnits[-1] * numFull}{(self.progressUnits[partIndex] if partIndex >= 0 else '')}{' ' * numEmpty}"
 
+    @staticmethod
+    def randomString(length: int) -> str:
+        return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+
     def readableSize(self, numBytes: int) -> str:
         i = 0
         if numBytes is None:
@@ -372,83 +420,6 @@ class GetHelper(BaseHelper):
                    f'dataDown: {self.readableSize(psutil.net_io_counters().bytes_recv)} | ' \
                    f'dataUp: {self.readableSize(psutil.net_io_counters().bytes_sent)}\n'
         return statsMsg
-
-
-class SubProcHelper(BaseHelper):
-    def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
-
-    def initHelper(self):
-        self.subProcs: typing.List[str] = ['aria2c', 'telegram-bot-a']
-        self.ariaDaemon: subprocess.Popen
-        self.botApiServer: subprocess.Popen
-        self.ariaDaemonStartCmd: typing.List[str] = \
-            [f"aria2c", "--daemon", "--enable-rpc", f"--rpc-secret={self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[1]]}",
-             f"--follow-torrent=mem", f"--check-certificate=false", f"--max-connection-per-server=10",
-             f"--rpc-max-request-size=1024M", f"--min-split-size=10M", f"--allow-overwrite=true",
-             f"--bt-max-peers=0", f"--seed-time=0.01", f"--split=10", f"--max-overall-upload-limit=1K",
-             f"--bt-tracker=$(aria2c 'https://trackerslist.com/all_aria2.txt' --quiet=true"
-             f"--allow-overwrite=true --out=trackerslist.txt --check-certificate=false; cat trackerslist.txt)",
-             f"--log={os.path.join(self.botHelper.envVars['currWorkDir'], logFiles[2])}"]
-        self.botApiServerStartCmd: typing.List[str] = \
-            [f"telegram-bot-api", f"--local", f"--verbosity=9", f"--api-id={self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[2]]}",
-             f"--api-hash={self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[3]]}", f"--log={os.path.join(self.botHelper.envVars['currWorkDir'], logFiles[1])}"]
-
-    def ariaDaemonStart(self) -> None:
-        self.ariaDaemon = subprocess.Popen(self.ariaDaemonStartCmd)
-        logger.info(f"ariaDaemon started (pid {self.ariaDaemon.pid})")
-
-    def ariaDaemonStop(self) -> None:
-        self.ariaDaemon.terminate()
-        logger.info(f"ariaDaemon terminated (pid {self.ariaDaemon.pid})")
-
-    def botApiServerStart(self) -> None:
-        self.botApiServer = subprocess.Popen(self.botApiServerStartCmd)
-        logger.info(f"botApiServer started (pid {self.botApiServer.pid})")
-
-    def botApiServerStop(self) -> None:
-        self.botApiServer.terminate()
-        logger.info(f"botApiServer terminated (pid {self.botApiServer.pid})")
-
-    # TODO: implement this function
-    def checkAriaDaemonStatus(self) -> None:
-        pass
-
-    def checkBotApiServerStatus(self) -> None:
-        conSuccess = False
-        while not conSuccess:
-            try:
-                self.botHelper.bot.getMe()
-                conSuccess = True
-            except telegram.error.NetworkError:
-                time.sleep(0.1)
-                continue
-
-    @staticmethod
-    def delLogFiles() -> None:
-        global logFiles
-        for file in logFiles[1:]:
-            if os.path.exists(file):
-                os.remove(file)
-                logger.debug(f"Deleted: '{file}'")
-
-    def killProcs(self) -> None:
-        for subProc in self.subProcs:
-            stdout = subprocess.run(['pkill', subProc, '-e'], stdout=subprocess.PIPE).stdout.decode('utf-8').replace('\n', ' ')
-            if stdout not in ['', ' ']:
-                logger.debug(stdout)
-
-    def initProcs(self) -> None:
-        self.killProcs()
-        self.delLogFiles()
-        self.botApiServerStart()
-        self.ariaDaemonStart()
-
-    def termProcs(self) -> None:
-        self.ariaDaemonStop()
-        self.botApiServerStop()
-        self.delLogFiles()
-        self.killProcs()
 
 
 class ThreadingHelper(BaseHelper):
@@ -566,10 +537,12 @@ class BotCommandHelper(BaseHelper):
         logger.info('Restarting the Bot...')
         restartMsg: telegram.Message = self.botHelper.bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
                                                                       reply_to_message_id=update.message.message_id)
-        self.botHelper.configHelper.jsonFileWrite(self.botHelper.restartJsonFile, {'chatId': f'{restartMsg.chat_id}', 'msgId': f'{restartMsg.message_id}'})
-        # TODO: may be not restart all subprocesses on every restart?
-        self.botHelper.subProcHelper.termProcs()
-        time.sleep(5)
+        self.botHelper.ariaHelper.api.remove_all(force=True)
+        self.botHelper.cleanDlRootDir()
+        restartJsonDict = {'chatId': f'{restartMsg.chat_id}', 'ariaDaemonPid': self.botHelper.ariaHelper.daemonPid,
+                           'msgId': f'{restartMsg.message_id}', 'botApiServerPid': self.botHelper.apiServerPid,
+                           'ariaRpcSecret': self.botHelper.ariaHelper.rpcSecret}
+        self.botHelper.configHelper.jsonFileWrite(self.botHelper.restartJsonFile, restartJsonDict)
         os.execl(sys.executable, sys.executable, '-m', 'tgmb')
 
     def statusCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
@@ -590,7 +563,7 @@ class BotCommandHelper(BaseHelper):
 
     def authorizeCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         chatId, chatName, chatType = self.botHelper.getHelper.chatDetails(update)
-        if str(chatId) in self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]].keys():
+        if str(chatId) in self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[1]].keys():
             replyTxt = f"Already Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
         else:
             self.botHelper.configHelper.updateAuthorizedChats(chatId, chatName, chatType, auth=True)
@@ -601,7 +574,7 @@ class BotCommandHelper(BaseHelper):
 
     def unauthorizeCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         chatId, chatName, chatType = self.botHelper.getHelper.chatDetails(update)
-        if str(chatId) in self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]].keys():
+        if str(chatId) in self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[1]].keys():
             self.botHelper.configHelper.updateAuthorizedChats(chatId, chatName, chatType, unauth=True)
             replyTxt = f"Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
         else:
@@ -630,8 +603,8 @@ class BotCommandHelper(BaseHelper):
     def topCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         topMsg = ''
         tgmbProc = psutil.Process(os.getpid())
-        ariaDaemonProc = psutil.Process(self.botHelper.subProcHelper.ariaDaemon.pid)
-        botApiServerProc = psutil.Process(self.botHelper.subProcHelper.botApiServer.pid)
+        ariaDaemonProc = psutil.Process(self.botHelper.ariaHelper.daemonPid)
+        botApiServerProc = psutil.Process(self.botHelper.apiServerPid)
         topMsg += f'{tgmbProc.name()}\n{tgmbProc.cpu_percent()}\n{tgmbProc.memory_percent()}\n'
         topMsg += f'{ariaDaemonProc.name()}\n{ariaDaemonProc.cpu_percent()}\n{ariaDaemonProc.memory_percent()}\n'
         topMsg += f'{botApiServerProc.name()}\n{botApiServerProc.cpu_percent()}\n{botApiServerProc.memory_percent()}\n'
@@ -754,7 +727,7 @@ class ConfigConvHelper(BaseHelper):
     def loadConfigDict(self):
         self.resetAllDat()
         self.configVarsEditable = self.botHelper.configHelper.jsonFileLoad(self.botHelper.configHelper.configJsonFile)
-        for key in [self.botHelper.configHelper.reqVars[4], self.botHelper.configHelper.reqVars[5], self.botHelper.configHelper.optVars[0]]:
+        for key in [self.botHelper.configHelper.reqVars[4], self.botHelper.configHelper.reqVars[5], self.botHelper.configHelper.optVars[1]]:
             if key in list(self.configVarsEditable.keys()):
                 self.configVarsEditable.pop(key)
 
@@ -1011,12 +984,12 @@ class MirrorInfo:
     updatableVars: typing.List[str] = ['sizeTotal', 'sizeCurrent', 'speedCurrent', 'timeCurrent',
                                        'isTorrent', 'numSeeders', 'numLeechers']
 
-    def __init__(self, msg: telegram.Message, dlRootDirPath: str):
+    def __init__(self, msg: telegram.Message, botHelper: BotHelper):
         self.msg = msg
         self.msgId = msg.message_id
         self.chatId = msg.chat.id
-        self.uid: str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        self.path: str = os.path.join(dlRootDirPath, self.uid)
+        self.uid: str = botHelper.getHelper.randomString(8)
+        self.path: str = os.path.join(botHelper.envVars['dlRootDirPath'], self.uid)
         self.status: str = ''
         self.downloadUrl: str = ''
         self.tag: str = ''
@@ -1165,6 +1138,7 @@ class MirrorListener:
 
     # TODO: improve method and maybe not use onCancelMirror callback in operationErrors and improve onOperationErrors
     def onCancelMirror(self, mirrorInfo: MirrorInfo) -> None:
+        # TODO: implement cancel callbacks for various download and upload types
         shutil.rmtree(mirrorInfo.path)
         self.botHelper.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
 
@@ -1377,7 +1351,7 @@ class MirrorHelper(BaseHelper):
             self.botHelper.mirrorListener.updateStatus(uid, MirrorStatus.cancelMirror)
 
     def genMirrorInfo(self, msg: telegram.Message) -> (bool, MirrorInfo):
-        mirrorInfo = MirrorInfo(msg, self.botHelper.envVars['dlRootDirPath'])
+        mirrorInfo = MirrorInfo(msg, self.botHelper)
         isValidDl: bool = True
         try:
             mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
@@ -1419,27 +1393,56 @@ class AriaHelper(BaseHelper):
         self.botHelper = botHelper
 
     def initHelper(self):
-        self.api: aria2p.API = aria2p.API(aria2p.Client(host="http://localhost", port=6800,
-                                                        secret=self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[1]]))
-        self.ariaGids: typing.Dict[str, str] = {}
+        self.rpcSecret = (self.botHelper.restartVars['ariaRpcSecret'] if self.botHelper.restartVars else self.botHelper.getHelper.randomString(8))
+        self.api = aria2p.API(aria2p.Client(host="http://localhost", port=6800, secret=self.rpcSecret))
+        self.daemonPid: int = 0
+        self.daemonStartCmd: typing.List[str] = ['aria2c', '--quiet', '--enable-rpc', f'--rpc-secret={self.rpcSecret}',
+                                                 '--rpc-max-request-size=32M', f'--log={logFiles[2]}']
+        self.globalOpts: aria2p.Options
+        self.gids: typing.Dict[str, str] = {}
 
     def addDownload(self, mirrorInfo: MirrorInfo) -> None:
         if mirrorInfo.isMagnet:
-            self.ariaGids[mirrorInfo.uid] = self.api.add_magnet(mirrorInfo.downloadUrl, options={'dir': mirrorInfo.path}).gid
+            self.gids[mirrorInfo.uid] = self.api.add_magnet(mirrorInfo.downloadUrl, options={'dir': mirrorInfo.path}).gid
         if mirrorInfo.isUrl:
-            self.ariaGids[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.downloadUrl], options={'dir': mirrorInfo.path}).gid
+            self.gids[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.downloadUrl], options={'dir': mirrorInfo.path}).gid
 
     def cancelDownload(self, uid: str) -> None:
-        self.getDlObj(self.ariaGids[uid]).remove(force=True, files=True)
-        self.ariaGids.pop(uid)
+        self.getDlObj(self.gids[uid]).remove(force=True, files=True)
+        self.gids.pop(uid)
 
     def getUid(self, gid: str) -> str:
-        for uid in self.ariaGids.keys():
-            if gid == self.ariaGids[uid]:
+        for uid in self.gids.keys():
+            if gid == self.gids[uid]:
                 return uid
 
     def getDlObj(self, gid: str) -> aria2p.Download:
         return self.api.get_download(gid)
+
+    def daemonStart(self) -> None:
+        if self.botHelper.restartVars:
+            self.daemonPid = self.botHelper.restartVars['ariaDaemonPid']
+            logger.info(f'botApiServer Already Running (pid {self.daemonPid}) !')
+        else:
+            self.daemonPid = subprocess.Popen(self.daemonStartCmd).pid
+            logger.info(f"ariaDaemon started (pid {self.daemonPid}) !")
+
+    # TODO: implement this method
+    def daemonCheck(self):
+        pass
+
+    def daemonStop(self) -> None:
+        os.kill(self.daemonPid, signal.SIGTERM)
+        logger.info(f"ariaDaemon terminated (pid {self.daemonPid})")
+
+    def globalOptsGet(self):
+        self.globalOpts = self.api.get_global_options()
+
+    def globalOptsSet(self):
+        userOpts = self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]]
+        for optKey in list(userOpts.keys()):
+            optSetResponse = self.globalOpts.set(optKey, userOpts[optKey])
+            logger.debug(f"(ariaGlobalOpts) ({optSetResponse}) ['{optKey}' : '{userOpts[optKey]}']")
 
     def startListener(self) -> None:
         self.api.listen_to_notifications(threaded=True,
@@ -1450,8 +1453,8 @@ class AriaHelper(BaseHelper):
                                          on_download_error=self.onDownloadError)
 
     def updateProgress(self, uid: str) -> None:
-        if uid in self.ariaGids.keys():
-            dlObj = self.getDlObj(self.ariaGids[uid])
+        if uid in self.gids.keys():
+            dlObj = self.getDlObj(self.gids[uid])
             currVars: typing.Dict[str, typing.Union[int, float, str]] \
                 = {MirrorInfo.updatableVars[0]: dlObj.total_length,
                    MirrorInfo.updatableVars[1]: dlObj.completed_length,
@@ -1472,7 +1475,7 @@ class AriaHelper(BaseHelper):
     def onDownloadComplete(self, _: aria2p.API, gid: str) -> None:
         logger.debug(vars(self.getDlObj(gid)))
         if self.getDlObj(gid).followed_by_ids:
-            self.ariaGids[self.getUid(gid)] = self.getDlObj(gid).followed_by_ids[0]
+            self.gids[self.getUid(gid)] = self.getDlObj(gid).followed_by_ids[0]
             return
         self.botHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
@@ -1905,7 +1908,7 @@ class StatusHelper(BaseHelper):
             mirrorInfo: MirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[uid]
             statusMsgTxt += f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
             if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
-                if mirrorInfo.uid in self.botHelper.ariaHelper.ariaGids.keys():
+                if mirrorInfo.uid in self.botHelper.ariaHelper.gids.keys():
                     self.botHelper.ariaHelper.updateProgress(mirrorInfo.uid)
                     statusMsgTxt += f'S: {self.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
                                     f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
@@ -2083,11 +2086,12 @@ class InterceptHandler(logging.Handler):
 # '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
 # '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
 
-logFiles: [str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
-logInfoFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | ' \
+logFormatInfo = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | ' \
                 '<k>{message}</k>'
-logDebugFormat = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
+logFormatDebug = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
                  '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
+
+logFiles: typing.List[str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
 
 warnings.filterwarnings("ignore")
 
@@ -2096,7 +2100,7 @@ if os.path.exists(logFiles[0]):
 
 logger = loguru.logger
 logger.remove()
-logger.add(sys.stderr, level='DEBUG', format=logDebugFormat)
-logger.add(logFiles[0], level='DEBUG', format=logDebugFormat, rotation='24h')
+logger.add(sys.stderr, level='DEBUG', format=logFormatDebug)
+logger.add(logFiles[0], level='DEBUG', format=logFormatDebug, rotation='24h')
 logger.disable('apscheduler')
 logging.basicConfig(handlers=[InterceptHandler()], level=0)
