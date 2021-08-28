@@ -45,6 +45,21 @@ class BaseHelper:
         raise NotImplementedError
 
 
+class BotWrapper:
+    def __init__(self):
+        self.botHelper = BotHelper()
+        self.botHelper.initHelper()
+
+    def Start(self):
+        self.botHelper.botStart()
+
+    def Idle(self):
+        self.botHelper.botIdle()
+
+    def Stop(self):
+        self.botHelper.botStop()
+
+
 class BotHelper(BaseHelper):
     def __init__(self):
         self.configHelper = ConfigHelper(self)
@@ -104,7 +119,6 @@ class BotHelper(BaseHelper):
         self.dispatcher.add_handler(unknownHandler)
 
     def botStart(self) -> None:
-        self.initHelper()
         self.subProcHelper.initProcs()
         self.subProcHelper.checkAriaDaemonStatus()
         self.subProcHelper.checkBotApiServerStatus()
