@@ -42,8 +42,11 @@ import youtube_dl
 
 
 class BaseHelper:
-    def initHelper(self):
-        raise NotImplementedError
+    def __init__(self, botHelper: 'BotHelper'):
+        self.botHelper = botHelper
+
+    def initHelper(self) -> None:
+        self.logger = self.botHelper.loggingHelper.logger
 
 
 class BotWrapper:
@@ -65,6 +68,7 @@ class BotHelper(BaseHelper):
     def __init__(self):
         self.configHelper = ConfigHelper(self)
         self.getHelper = GetHelper(self)
+        self.loggingHelper = LoggingHelper(self)
         self.mirrorHelper = MirrorHelper(self)
         self.threadingHelper = ThreadingHelper(self)
         self.botCmdHelper = BotCommandHelper(self)
@@ -77,13 +81,15 @@ class BotHelper(BaseHelper):
         self.compressionHelper = CompressionHelper(self)
         self.decompressionHelper = DecompressionHelper(self)
         self.statusHelper = StatusHelper(self)
-        self.mirrorListener = MirrorListener(self)
+        self.mirrorListenerHelper = MirrorListenerHelper(self)
+        super().__init__(self)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
         self.envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
         self.restartJsonFile = 'restart.json'
         self.restartVars = (self.configHelper.jsonFileLoad(self.restartJsonFile) if os.path.exists(self.restartJsonFile) else {})
         self.initSubHelpers()
+        super().initHelper()
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8443
         self.startTime: float = time.time()
@@ -92,7 +98,7 @@ class BotHelper(BaseHelper):
             ['telegram-bot-api', '--local', '--verbosity=9',
              f'--api-id={self.configHelper.configVars[self.configHelper.reqVars[2]]}',
              f'--api-hash={self.configHelper.configVars[self.configHelper.reqVars[3]]}',
-             f'--log={os.path.join(self.envVars["currWorkDir"], logFiles[1])}']
+             f'--log={os.path.join(self.envVars["currWorkDir"], self.loggingHelper.logFiles[1])}']
         self.updater = telegram.ext.Updater(token=self.configHelper.configVars[self.configHelper.reqVars[0]],
                                             base_url=f'http://{self.listenAddress}:8081/bot')
         self.dispatcher = self.updater.dispatcher
@@ -100,6 +106,7 @@ class BotHelper(BaseHelper):
         self.envVars['dlRootDirPath'] = os.path.join(self.envVars['currWorkDir'], self.configHelper.configVars[self.configHelper.optVars[2]])
 
     def initSubHelpers(self):
+        self.loggingHelper.initHelper()
         self.getHelper.initHelper()
         self.threadingHelper.initHelper()
         self.configHelper.initHelper()
@@ -118,10 +125,10 @@ class BotHelper(BaseHelper):
     def apiServerStart(self) -> None:
         if self.restartVars:
             self.apiServerPid = self.restartVars['botApiServerPid']
-            logger.info(f'botApiServer Already Running (pid {self.apiServerPid}) !')
+            self.logger.info(f'botApiServer Already Running (pid {self.apiServerPid}) !')
         else:
             self.apiServerPid = subprocess.Popen(self.apiServerStartCmd).pid
-            logger.info(f'botApiServer Started (pid {self.apiServerPid}) !')
+            self.logger.info(f'botApiServer Started (pid {self.apiServerPid}) !')
 
     def apiServerCheck(self) -> None:
         conSuccess = False
@@ -135,7 +142,7 @@ class BotHelper(BaseHelper):
 
     def apiServerStop(self) -> None:
         os.kill(self.apiServerPid, signal.SIGTERM)
-        logger.info(f"botApiServer terminated (pid {self.apiServerPid})")
+        self.logger.info(f"botApiServer terminated (pid {self.apiServerPid})")
 
     def addAllHandlers(self) -> None:
         for cmdHandler in self.botCmdHelper.cmdHandlers:
@@ -159,8 +166,8 @@ class BotHelper(BaseHelper):
         self.googleDriveHelper.authorizeApi()
         self.addAllHandlers()
         self.updaterStart()
-        self.mirrorListener.startWebhookServer()
-        logger.info("Bot Started !")
+        self.mirrorListenerHelper.startWebhookServer()
+        self.logger.info("Bot Started !")
 
     def botIdle(self) -> None:
         self.onRestart()
@@ -170,8 +177,8 @@ class BotHelper(BaseHelper):
         self.apiServerStop()
         self.ariaHelper.daemonStop()
         self.delLogFiles()
-        self.mirrorListener.stopWebhookServer()
-        logger.info("Bot Stopped !")
+        self.mirrorListenerHelper.stopWebhookServer()
+        self.logger.info("Bot Stopped !")
 
     def onRestart(self) -> None:
         if self.restartVars:
@@ -187,10 +194,10 @@ class BotHelper(BaseHelper):
     # TODO: delLogFiles on botStop(), with restartVars != {}
     def delLogFiles(self) -> None:
         if not self.restartVars:
-            for logFile in logFiles[1:]:
+            for logFile in self.loggingHelper.logFiles[1:]:
                 if os.path.exists(logFile):
                     os.remove(logFile)
-                    logger.debug(f"Deleted: '{logFile}'")
+                    self.logger.debug(f"Deleted: '{logFile}'")
 
     def updaterStart(self):
         self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=self.configHelper.configVars[self.configHelper.reqVars[0]],
@@ -202,9 +209,10 @@ class BotHelper(BaseHelper):
 
 class ConfigHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.configJsonFile = 'config.json'
         self.configJsonBakFile = self.configJsonFile + '.bak'
         self.dynamicJsonFile = 'dynamic.json'
@@ -223,7 +231,7 @@ class ConfigHelper(BaseHelper):
         self.configVarsCheck()
 
     def configFileDl(self, configFile: str) -> None:
-        logger.debug(f"Starting Download: '{configFile}'...")
+        self.logger.debug(f"Starting Download: '{configFile}'...")
         configFileId = self.botHelper.envVars[self.botHelper.getHelper.fileIdKey(configFile)]
         configFileUrl = f'https://docs.google.com/uc?export=download&id={configFileId}'
         if os.path.exists(configFile):
@@ -234,22 +242,21 @@ class ConfigHelper(BaseHelper):
         timeElapsed = 0.1
         while timeElapsed <= float(self.botHelper.envVars['dlWaitTime']):
             if os.path.exists(configFile):
-                logger.debug(f"Downloaded '{configFile}' !")
+                self.logger.debug(f"Downloaded '{configFile}' !")
                 break
             else:
                 time.sleep(0.1)
                 timeElapsed += 0.1
 
-    @staticmethod
-    def configFileCheck(configFile: str):
+    def configFileCheck(self, configFile: str):
         if not os.path.exists(configFile):
-            logger.error(f"Missing configFile: '{configFile}' ! Exiting...")
+            self.logger.error(f"Missing configFile: '{configFile}' ! Exiting...")
             exit(1)
 
     def configFileSync(self, configFiles: typing.List[str]) -> None:
         for configFile in configFiles:
-            logger.info(self.botHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile),
-                                                                   self.botHelper.envVars[self.botHelper.getHelper.fileIdKey(configFile)]))
+            self.logger.info(self.botHelper.googleDriveHelper.patchFile(os.path.join(self.botHelper.envVars['currWorkDir'], configFile),
+                                                                        self.botHelper.envVars[self.botHelper.getHelper.fileIdKey(configFile)]))
 
     def configVarsCheck(self) -> None:
         for reqVar in self.reqVars:
@@ -257,7 +264,7 @@ class ConfigHelper(BaseHelper):
                 if self.configVars[reqVar] in self.emptyVals:
                     raise KeyError
             except KeyError:
-                logger.error(f"Required Environment Variable Missing: '{reqVar}' ! Exiting...")
+                self.logger.error(f"Required Environment Variable Missing: '{reqVar}' ! Exiting...")
                 exit(1)
         for optVar in self.optVars:
             try:
@@ -269,7 +276,7 @@ class ConfigHelper(BaseHelper):
     def configVarsLoad(self) -> None:
         if os.path.exists(self.dynamicJsonFile):
             self.botHelper.envVars['dynamicConfig'] = True
-            logger.info('Using Dynamic Config...')
+            self.logger.info('Using Dynamic Config...')
             self.botHelper.envVars = {**self.botHelper.envVars, **self.jsonFileLoad(self.dynamicJsonFile)}
             self.configFileDl(self.fileidJsonFile)
             self.configFileCheck(self.fileidJsonFile)
@@ -282,7 +289,7 @@ class ConfigHelper(BaseHelper):
                 time.sleep(0.1)
         else:
             self.botHelper.envVars['dynamicConfig'] = False
-            logger.info('Using Static Config...')
+            self.logger.info('Using Static Config...')
             self.botHelper.envVars['dlWaitTime'] = '5'
         for configFile in self.configFiles:
             self.configFileCheck(configFile)
@@ -325,9 +332,10 @@ class ConfigHelper(BaseHelper):
 
 class GetHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.keySuffixId: str = 'Id'
         self.keySuffixHash: str = 'Hash'
         self.sizeUnits: [str] = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
@@ -422,11 +430,37 @@ class GetHelper(BaseHelper):
         return statsMsg
 
 
+class LoggingHelper(BaseHelper):
+    LogFormatDefault = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
+                       '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
+    LogFormatInfo = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | ' \
+                    '<k>{message}</k>'
+    LogFormatDebug = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
+                     '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
+
+    def __init__(self, botHelper: BotHelper):
+        super().__init__(botHelper)
+
+    def initHelper(self) -> None:
+        self.logFiles: typing.List[str] = ['bot.log', 'botApiServer.log', 'ariaDaemon.log',
+                                           'tqueue.binlog', 'webhooks_db.binlog']
+        if os.path.exists(self.logFiles[0]):
+            os.remove(self.logFiles[0])
+        self.logger = loguru.logger
+        self.logger.remove()
+        self.logger.add(sys.stderr, level='DEBUG', format=self.LogFormatDebug)
+        self.logger.add(self.logFiles[0], level='DEBUG', format=self.LogFormatDebug, rotation='24h')
+        self.logger.disable('apscheduler')
+        logging.basicConfig(handlers=[InterceptHandler(self.logger)], level=0)
+        warnings.filterwarnings('ignore')
+
+
 class ThreadingHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.runningThreads: typing.List[threading.Thread] = []
 
     def initThread(self, target: typing.Callable, name: str, *args: object, **kwargs: object) -> None:
@@ -436,14 +470,14 @@ class ThreadingHelper(BaseHelper):
     def wrapThread(self, target: typing.Callable, *args: object, **kwargs: object) -> None:
         currentThread = threading.current_thread()
         self.runningThreads.append(currentThread)
-        logger.debug(f'Thread Started: {currentThread.name} [runningThreads - {len(self.runningThreads)}]')
+        self.logger.debug(f'Thread Started: {currentThread.name} [runningThreads - {len(self.runningThreads)}]')
         try:
             target(*args, **kwargs)
         except Exception:
-            logger.exception(f'Unhandled Exception in Thread: {currentThread.name}')
+            self.logger.exception(f'Unhandled Exception in Thread: {currentThread.name}')
             raise
         self.runningThreads.remove(currentThread)
-        logger.debug(f'Thread Ended: {currentThread.name} [runningThreads - {len(self.runningThreads)}]')
+        self.logger.debug(f'Thread Ended: {currentThread.name} [runningThreads - {len(self.runningThreads)}]')
 
 
 class BotCommandHelper(BaseHelper):
@@ -465,9 +499,10 @@ class BotCommandHelper(BaseHelper):
     ConfigCmd = telegram.BotCommand(command='config', description='ConfigCommand')
 
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.startCmdHandler = telegram.ext.CommandHandler(command=self.StartCmd.command,
                                                            callback=self.startCallBack, run_async=True)
         self.helpCmdHandler = telegram.ext.CommandHandler(command=self.HelpCmd.command,
@@ -534,7 +569,7 @@ class BotCommandHelper(BaseHelper):
                                        reply_to_message_id=update.message.message_id)
 
     def restartCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
-        logger.info('Restarting the Bot...')
+        self.logger.info('Restarting the Bot...')
         restartMsg: telegram.Message = self.botHelper.bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
                                                                       reply_to_message_id=update.message.message_id)
         self.botHelper.ariaHelper.api.remove_all(force=True)
@@ -568,7 +603,7 @@ class BotCommandHelper(BaseHelper):
         else:
             self.botHelper.configHelper.updateAuthorizedChats(chatId, chatName, chatType, auth=True)
             replyTxt = f"Authorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
-        logger.info(replyTxt)
+        self.logger.info(replyTxt)
         self.botHelper.bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                        reply_to_message_id=update.message.message_id)
 
@@ -579,23 +614,23 @@ class BotCommandHelper(BaseHelper):
             replyTxt = f"Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
         else:
             replyTxt = f"Already Unauthorized Chat: '{chatName}' - ({chatId}) ({chatType}) !"
-        logger.info(replyTxt)
+        self.logger.info(replyTxt)
         self.botHelper.bot.sendMessage(text=replyTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                        reply_to_message_id=update.message.message_id)
 
     def syncCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         if self.botHelper.envVars['dynamicConfig']:
             replyMsgTxt = 'Syncing to Google Drive...'
-            logger.info(replyMsgTxt)
+            self.logger.info(replyMsgTxt)
             replyMsg = self.botHelper.bot.sendMessage(text=replyMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                                       reply_to_message_id=update.message.message_id)
             self.botHelper.configHelper.configFileSync(self.botHelper.configHelper.configFiles)
             self.botHelper.configHelper.updateFileidJson()
-            logger.info('Sync Completed !')
+            self.logger.info('Sync Completed !')
             replyMsg.edit_text(f'Sync Completed !\n{self.botHelper.configHelper.configFiles}\nPlease /{self.RestartCmd.command} !')
         else:
             replyMsgTxt = "Not Synced - Using Static Config !"
-            logger.info(replyMsgTxt)
+            self.logger.info(replyMsgTxt)
             self.botHelper.bot.sendMessage(text=replyMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                            reply_to_message_id=update.message.message_id)
 
@@ -619,12 +654,13 @@ class BotCommandHelper(BaseHelper):
 
 class BotConversationHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
         self.configConvHelper = ConfigConvHelper(self.botHelper)
         self.logConvHelper = LogConvHelper(self.botHelper)
         self.mirrorConvHelper = MirrorConvHelper(self.botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.initSubHelpers()
         self.convHandlers: typing.List[telegram.ext.ConversationHandler] = \
             [self.configConvHelper.handler, self.logConvHelper.handler, self.mirrorConvHelper.handler]
@@ -637,9 +673,10 @@ class BotConversationHelper(BaseHelper):
 
 class ConfigConvHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.configVarsEditable: typing.Dict
         self.configVarsNew: typing.Dict[str, str]
         self.tempKeyIndex: int
@@ -672,7 +709,7 @@ class ConfigConvHelper(BaseHelper):
                                                         conversation_timeout=120, run_async=True)
 
     def stageZero(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
-        logger.info(f"Owner '{update.message.from_user.first_name}' is Editing '{self.botHelper.configHelper.configJsonFile}'...")
+        self.logger.info(f"Owner '{update.message.from_user.first_name}' is Editing '{self.botHelper.configHelper.configJsonFile}'...")
         self.loadConfigDict()
         return self.chooseKey(update=update)
 
@@ -777,7 +814,7 @@ class ConfigConvHelper(BaseHelper):
 
     def discardChanges(self, query: telegram.CallbackQuery) -> int:
         self.configVarsNew = {}
-        logger.info(f"Owner '{query.from_user.first_name}' Discarded Changes Made to '{self.botHelper.configHelper.configJsonFile}' !")
+        self.logger.info(f"Owner '{query.from_user.first_name}' Discarded Changes Made to '{self.botHelper.configHelper.configJsonFile}' !")
         query.edit_message_text(text=f"Discarded Changes.", reply_markup=InlineKeyboardMaker(['Start Over', 'Exit']).build(2))
         return self.SIXTH
 
@@ -786,7 +823,7 @@ class ConfigConvHelper(BaseHelper):
         for configVarKey in list(self.configVarsNew.keys()):
             self.botHelper.configHelper.configVars[configVarKey] = self.configVarsNew[configVarKey]
         self.botHelper.configHelper.updateConfigJson()
-        logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{self.botHelper.configHelper.configJsonFile}' !")
+        self.logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{self.botHelper.configHelper.configJsonFile}' !")
         query.edit_message_text(text=f"Saved Changes.\nPlease /{self.botHelper.botCmdHelper.RestartCmd.command} to Load Changes.")
         return telegram.ext.ConversationHandler.END
 
@@ -805,9 +842,10 @@ class ConfigConvHelper(BaseHelper):
 
 class LogConvHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.chatId: int
         self.msgId: int
         self.sentMsgId: int
@@ -823,7 +861,7 @@ class LogConvHelper(BaseHelper):
         self.chatId = update.message.chat.id
         self.msgId = update.message.message_id
         buttonList: typing.List[str] = \
-            [f'[{logFile}] [{self.botHelper.getHelper.readableSize(os.path.getsize(logFile))}]' for logFile in logFiles[0:3]]
+            [f'[{logFile}] [{self.botHelper.getHelper.readableSize(os.path.getsize(logFile))}]' for logFile in self.botHelper.loggingHelper.logFiles[0:3]]
         buttonList += ['All', 'Exit']
         self.sentMsgId = update.message.reply_text(text='Select:', reply_markup=InlineKeyboardMaker(buttonList).build(1)).message_id
         return self.FIRST
@@ -834,15 +872,15 @@ class LogConvHelper(BaseHelper):
         if query.data in ['1', '2', '3', '4']:
             query.edit_message_text(text='Uploading logFiles...')
             if query.data == '4':
-                self.botHelper.bot.sendMediaGroup(media=[telegram.InputMediaDocument(logFile) for logFile in logFiles[0:3]],
+                self.botHelper.bot.sendMediaGroup(media=[telegram.InputMediaDocument(logFile) for logFile in self.botHelper.loggingHelper.logFiles[0:3]],
                                                   timeout=self.docSendTimeout, chat_id=self.chatId, reply_to_message_id=self.msgId)
-                logger.info("Sent logFiles !")
+                self.logger.info("Sent logFiles !")
             else:
                 logFileIndex = int(query.data) - 1
-                self.botHelper.bot.sendDocument(document=f"file://{self.botHelper.envVars['currWorkDir']}/{logFiles[logFileIndex]}",
-                                                filename=logFiles[logFileIndex], timeout=self.docSendTimeout,
+                self.botHelper.bot.sendDocument(document=f"file://{self.botHelper.envVars['currWorkDir']}/{self.botHelper.loggingHelper.logFiles[logFileIndex]}",
+                                                filename=self.botHelper.loggingHelper.logFiles[logFileIndex], timeout=self.docSendTimeout,
                                                 chat_id=self.chatId, reply_to_message_id=self.msgId)
-                logger.info(f"Sent logFile: '{logFiles[logFileIndex]}' !")
+                self.logger.info(f"Sent logFile: '{self.botHelper.loggingHelper.logFiles[logFileIndex]}' !")
             self.botHelper.bot.deleteMessage(chat_id=self.chatId, message_id=self.sentMsgId)
         if query.data == '5':
             query.edit_message_text(text='Exited.')
@@ -851,9 +889,10 @@ class LogConvHelper(BaseHelper):
 
 class MirrorConvHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.isValidDl: bool
         self.mirrorInfo: MirrorInfo
         self.FIRST, self.SECOND, self.THIRD, self.FOURTH, self.FIFTH = range(5)
@@ -894,7 +933,7 @@ class MirrorConvHelper(BaseHelper):
         query = update.callback_query
         query.answer()
         if query.data == '1':
-            logger.info(f"addMirror - ['{self.mirrorInfo.downloadUrl}']")
+            self.logger.info(f"addMirror - ['{self.mirrorInfo.downloadUrl}']")
             self.botHelper.mirrorHelper.addMirror(self.mirrorInfo)
             query.edit_message_text(text='addMirror Succeeded !')
             return telegram.ext.ConversationHandler.END
@@ -945,7 +984,7 @@ class MirrorConvHelper(BaseHelper):
         query = update.callback_query
         query.answer()
         if query.data == '1':
-            logger.info(f"addMirror - ['{self.mirrorInfo.downloadUrl}']")
+            self.logger.info(f"addMirror - ['{self.mirrorInfo.downloadUrl}']")
             self.botHelper.mirrorHelper.addMirror(self.mirrorInfo)
             query.edit_message_text(text='addMirror Succeeded !')
         elif query.data == '2':
@@ -1070,9 +1109,12 @@ class MirrorStatus:
     uploadError = 'uploadError'
 
 
-class MirrorListener:
+class MirrorListenerHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
+
+    def initHelper(self) -> None:
+        super().initHelper()
         self.webhookServer: WebhookServer
         self.downloadQueueSize: int = 3
         self.downloadQueueActive: int = 0
@@ -1113,7 +1155,7 @@ class MirrorListener:
 
     def startWebhookServer(self, ready=None, forceEventLoop=False) -> None:
         self.webhookServer = WebhookServer(self.botHelper)
-        self.botHelper.threadingHelper.initThread(target=self.webhookServer.serveForever, name='mirrorListener.webhookServer',
+        self.botHelper.threadingHelper.initThread(target=self.webhookServer.serveForever, name='MirrorListenerHelper.webhookServer',
                                                   forceEventLoop=forceEventLoop, ready=ready)
 
     def stopWebhookServer(self) -> None:
@@ -1129,7 +1171,7 @@ class MirrorListener:
 
     def updateStatusCallback(self, uid: str) -> None:
         mirrorInfo: MirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[uid]
-        logger.info(f'{mirrorInfo.uid} : {mirrorInfo.status}')
+        self.logger.info(f'{mirrorInfo.uid} : {mirrorInfo.status}')
         self.statusCallBacks[mirrorInfo.status](mirrorInfo)
 
     def onAddMirror(self, mirrorInfo: MirrorInfo) -> None:
@@ -1310,24 +1352,25 @@ class MirrorListener:
 
 class MirrorHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.mirrorInfos: typing.Dict[str, MirrorInfo] = {}
         self.supportedArchiveFormats: typing.Dict[str, str] = {'zip': '.zip', 'tar': '.tar', 'bztar': '.tar.bz2',
                                                                'gztar': '.tar.gz', 'xztar': '.tar.xz'}
 
     def addMirror(self, mirrorInfo: MirrorInfo) -> None:
-        logger.debug(vars(mirrorInfo))
+        self.logger.debug(vars(mirrorInfo))
         self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
         self.mirrorInfos[mirrorInfo.uid].timeStart = int(time.time())
-        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
         self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
                                                   chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
 
     def cancelMirror(self, msg: telegram.Message) -> None:
         if self.mirrorInfos == {}:
-            logger.info('No Active Downloads !')
+            self.logger.info('No Active Downloads !')
             return
         uids: typing.List[str] = []
         try:
@@ -1345,10 +1388,10 @@ class MirrorHelper(BaseHelper):
                         uids.append(mirrorInfo.uid)
                         break
         if len(uids) == 0:
-            logger.info('No Valid Mirror Found !')
+            self.logger.info('No Valid Mirror Found !')
             return
         for uid in uids:
-            self.botHelper.mirrorListener.updateStatus(uid, MirrorStatus.cancelMirror)
+            self.botHelper.mirrorListenerHelper.updateStatus(uid, MirrorStatus.cancelMirror)
 
     def genMirrorInfo(self, msg: telegram.Message) -> (bool, MirrorInfo):
         mirrorInfo = MirrorInfo(msg, self.botHelper)
@@ -1384,20 +1427,21 @@ class MirrorHelper(BaseHelper):
             else:
                 isValidDl = False
         if not isValidDl:
-            logger.info('No Valid Link Provided !')
+            self.logger.info('No Valid Link Provided !')
         return isValidDl, mirrorInfo
 
 
 class AriaHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.rpcSecret = (self.botHelper.restartVars['ariaRpcSecret'] if self.botHelper.restartVars else self.botHelper.getHelper.randomString(8))
         self.api = aria2p.API(aria2p.Client(host="http://localhost", port=6800, secret=self.rpcSecret))
         self.daemonPid: int = 0
         self.daemonStartCmd: typing.List[str] = ['aria2c', '--quiet', '--enable-rpc', f'--rpc-secret={self.rpcSecret}',
-                                                 '--rpc-max-request-size=32M', f'--log={logFiles[2]}']
+                                                 '--rpc-max-request-size=32M', f'--log={self.botHelper.loggingHelper.logFiles[2]}']
         self.globalOpts: aria2p.Options
         self.gids: typing.Dict[str, str] = {}
 
@@ -1422,10 +1466,10 @@ class AriaHelper(BaseHelper):
     def daemonStart(self) -> None:
         if self.botHelper.restartVars:
             self.daemonPid = self.botHelper.restartVars['ariaDaemonPid']
-            logger.info(f'botApiServer Already Running (pid {self.daemonPid}) !')
+            self.logger.info(f'botApiServer Already Running (pid {self.daemonPid}) !')
         else:
             self.daemonPid = subprocess.Popen(self.daemonStartCmd).pid
-            logger.info(f"ariaDaemon started (pid {self.daemonPid}) !")
+            self.logger.info(f"ariaDaemon started (pid {self.daemonPid}) !")
 
     # TODO: implement this method
     def daemonCheck(self):
@@ -1433,7 +1477,7 @@ class AriaHelper(BaseHelper):
 
     def daemonStop(self) -> None:
         os.kill(self.daemonPid, signal.SIGTERM)
-        logger.info(f"ariaDaemon terminated (pid {self.daemonPid})")
+        self.logger.info(f"ariaDaemon terminated (pid {self.daemonPid})")
 
     def globalOptsGet(self):
         self.globalOpts = self.api.get_global_options()
@@ -1442,7 +1486,7 @@ class AriaHelper(BaseHelper):
         userOpts = self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]]
         for optKey in list(userOpts.keys()):
             optSetResponse = self.globalOpts.set(optKey, userOpts[optKey])
-            logger.debug(f"(ariaGlobalOpts) ({optSetResponse}) ['{optKey}' : '{userOpts[optKey]}']")
+            self.logger.debug(f"(ariaGlobalOpts) ({optSetResponse}) ['{optKey}' : '{userOpts[optKey]}']")
 
     def startListener(self) -> None:
         self.api.listen_to_notifications(threaded=True,
@@ -1467,30 +1511,31 @@ class AriaHelper(BaseHelper):
             self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
 
     def onDownloadStart(self, _: aria2p.API, gid: str) -> None:
-        logger.debug(vars(self.getDlObj(gid)))
+        self.logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadPause(self, _: aria2p.API, gid: str) -> None:
-        logger.debug(vars(self.getDlObj(gid)))
+        self.logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadComplete(self, _: aria2p.API, gid: str) -> None:
-        logger.debug(vars(self.getDlObj(gid)))
+        self.logger.debug(vars(self.getDlObj(gid)))
         if self.getDlObj(gid).followed_by_ids:
             self.gids[self.getUid(gid)] = self.getDlObj(gid).followed_by_ids[0]
             return
-        self.botHelper.mirrorListener.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListenerHelper.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str) -> None:
-        logger.debug(vars(self.getDlObj(gid)))
+        self.logger.debug(vars(self.getDlObj(gid)))
 
     def onDownloadError(self, _: aria2p.API, gid: str) -> None:
-        logger.debug(vars(self.getDlObj(gid)))
+        self.logger.debug(vars(self.getDlObj(gid)))
 
 
 class GoogleDriveHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.authInfos: typing.List[str] = ['saJson', 'tokenJson']
         self.authTypes: typing.List[str] = ['saAuth', 'userAuth']
         self.oauthScopes: typing.List[str] = ['https://www.googleapis.com/auth/drive']
@@ -1510,7 +1555,7 @@ class GoogleDriveHelper(BaseHelper):
                 = google.oauth2.credentials.Credentials.\
                 from_authorized_user_info(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]], self.oauthScopes)
         else:
-            logger.error('No Valid googleDriveAuth in configJsonFile ! Exiting...')
+            self.logger.error('No Valid googleDriveAuth in configJsonFile ! Exiting...')
             exit(1)
 
     def addDownload(self, mirrorInfo: MirrorInfo) -> None:
@@ -1531,7 +1576,7 @@ class GoogleDriveHelper(BaseHelper):
                 self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path)
             else:
                 self.downloadFile(sourceFileId=sourceId, dlPath=mirrorInfo.path)
-        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1547,7 +1592,7 @@ class GoogleDriveHelper(BaseHelper):
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
         else:
             time.sleep(self.botHelper.statusHelper.statusUpdateInterval)
-        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
 
     def cancelUpload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1559,12 +1604,12 @@ class GoogleDriveHelper(BaseHelper):
             if not self.oauthCreds.valid:
                 if self.oauthCreds.expired and self.oauthCreds.refresh_token:
                     self.oauthCreds.refresh(google.auth.transport.requests.Request())
-                    logger.info('Google Drive API Token Refreshed !')
+                    self.logger.info('Google Drive API Token Refreshed !')
                     self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[4]]['authInfos'][self.authInfos[1]] = json.loads(self.oauthCreds.to_json())
                     self.buildService()
                     self.botHelper.configHelper.updateConfigJson()
                 else:
-                    logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
+                    self.logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
 
     def buildService(self) -> None:
@@ -1705,10 +1750,10 @@ class GoogleDriveHelper(BaseHelper):
 
 class MegaHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
-        pass
+    def initHelper(self) -> None:
+        super().initHelper()
 
     def addDownload(self, mirrorInfo: MirrorInfo) -> None:
         raise NotImplementedError
@@ -1725,9 +1770,10 @@ class MegaHelper(BaseHelper):
 
 class TelegramHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.uploadMaxSize: int = 2 * 1024 * 1024 * 1024
         self.maxTimeout: int = 24 * 60 * 60
 
@@ -1738,7 +1784,7 @@ class TelegramHelper(BaseHelper):
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: media.file_size})
                 self.downloadMedia(media, mirrorInfo.path)
                 break
-        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1755,9 +1801,9 @@ class TelegramHelper(BaseHelper):
             if not self.uploadFolder(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
         if upResponse:
-            self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
+            self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
         if not upResponse:
-            self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
+            self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
 
     def cancelUpload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1795,16 +1841,16 @@ class TelegramHelper(BaseHelper):
 
 class YouTubeHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
-        pass
+    def initHelper(self) -> None:
+        super().initHelper()
 
     def addDownload(self, mirrorInfo: MirrorInfo) -> None:
-        ytdlOpts: dict = {'format': 'best/bestvideo+bestaudio', 'logger': logger,
+        ytdlOpts: dict = {'format': 'best/bestvideo+bestaudio', 'logger': self.logger,
                           'outtmpl': f'{mirrorInfo.path}/%(title)s-%(id)s.f%(format_id)s.%(ext)s'}
         self.downloadVideo(mirrorInfo.downloadUrl, ytdlOpts)
-        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1817,14 +1863,14 @@ class YouTubeHelper(BaseHelper):
 
 class CompressionHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
-        pass
+    def initHelper(self) -> None:
+        super().initHelper()
 
     def addCompression(self, mirrorInfo: MirrorInfo) -> None:
         self.compressSource(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
-        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
 
     def cancelCompression(self, uid: str) -> None:
         raise NotImplementedError
@@ -1842,14 +1888,14 @@ class CompressionHelper(BaseHelper):
 
 class DecompressionHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
-        pass
+    def initHelper(self) -> None:
+        super().initHelper()
 
     def addDecompression(self, mirrorInfo: MirrorInfo) -> None:
         self.decompressArchive(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
-        self.botHelper.mirrorListener.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
 
     def cancelDecompression(self, uid: str) -> None:
         raise NotImplementedError
@@ -1872,9 +1918,10 @@ class DecompressionHelper(BaseHelper):
 
 class StatusHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
-        self.botHelper = botHelper
+        super().__init__(botHelper)
 
-    def initHelper(self):
+    def initHelper(self) -> None:
+        super().initHelper()
         self.updaterLock = threading.Lock()
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
@@ -1956,6 +2003,7 @@ class StatusHelper(BaseHelper):
 class WebhookServer:
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
+        self.logger = self.botHelper.loggingHelper.logger
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8448
         self.webhookPath: str = 'mirrorListener'
@@ -1971,25 +2019,24 @@ class WebhookServer:
     def serveForever(self, forceEventLoop: bool = False, ready: threading.Event = None) -> None:
         with self.serverLock:
             self.isRunning = True
-            logger.debug('Webhook Server started.')
+            self.logger.debug('Webhook Server started.')
             self.ensureEventLoop(forceEventLoop=forceEventLoop)
             self.loop = tornado.ioloop.IOLoop.current()
             self.httpServer.listen(self.listenPort, address=self.listenAddress)
             if ready is not None:
                 ready.set()
             self.loop.start()
-            logger.debug('Webhook Server stopped.')
+            self.logger.debug('Webhook Server stopped.')
             self.isRunning = False
 
     def shutdown(self) -> None:
         with self.shutdownLock:
             if not self.isRunning:
-                logger.warning('Webhook Server already stopped.')
+                self.logger.warning('Webhook Server already stopped.')
                 return
             self.loop.add_callback(self.loop.stop)
 
-    @staticmethod
-    def ensureEventLoop(forceEventLoop: bool = False) -> None:
+    def ensureEventLoop(self, forceEventLoop: bool = False) -> None:
         try:
             loop = asyncio.get_event_loop()
             if (not forceEventLoop and os.name == 'nt' and sys.version_info >= (3, 8)
@@ -1998,7 +2045,7 @@ class WebhookServer:
         except RuntimeError:
             if (os.name == 'nt' and sys.version_info >= (3, 8) and hasattr(asyncio, 'WindowsProactorEventLoopPolicy')
                     and (isinstance(asyncio.get_event_loop_policy(), asyncio.WindowsProactorEventLoopPolicy))):
-                logger.debug('Applying Tornado asyncio event loop fix for Python 3.8+ on Windows')
+                self.logger.debug('Applying Tornado asyncio event loop fix for Python 3.8+ on Windows')
                 loop = asyncio.SelectorEventLoop()
             else:
                 loop = asyncio.new_event_loop()
@@ -2022,18 +2069,19 @@ class WebhookHandler(tornado.web.RequestHandler):
 
     def initialize(self, botHelper: BotHelper) -> None:
         self.botHelper = botHelper
+        self.logger = self.botHelper.loggingHelper.logger
 
     def set_default_headers(self) -> None:
         self.set_header("Content-Type", 'application/json; charset="utf-8"')
 
     def post(self) -> None:
-        logger.debug('Webhook Triggered')
+        self.logger.debug('Webhook Triggered')
         self._validate_post()
         json_string = self.request.body.decode()
         data = json.loads(json_string)
         self.set_status(200)
-        logger.debug(f'Webhook Received Data: {data}')
-        self.botHelper.threadingHelper.initThread(target=self.botHelper.mirrorListener.updateStatusCallback,
+        self.logger.debug(f'Webhook Received Data: {data}')
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.mirrorListenerHelper.updateStatusCallback,
                                                   name=f"{data['mirrorUid']}-{data['mirrorStatus']}", uid=data['mirrorUid'])
 
     def _validate_post(self) -> None:
@@ -2043,7 +2091,7 @@ class WebhookHandler(tornado.web.RequestHandler):
 
     def write_error(self, status_code: int, **kwargs: typing.Any) -> None:
         super().write_error(status_code, **kwargs)
-        logger.debug("%s - - %s", self.request.remote_ip, "Exception in WebhookHandler", exc_info=kwargs['exc_info'])
+        self.logger.debug("%s - - %s", self.request.remote_ip, "Exception in WebhookHandler", exc_info=kwargs['exc_info'])
 
 
 class DirectDownloadLinkException(Exception):
@@ -2070,37 +2118,17 @@ class InlineKeyboardMaker:
 
 
 class InterceptHandler(logging.Handler):
+    def __init__(self, logger):
+        self.logger = logger
+        super().__init__()
+
     def emit(self, record):
         try:
-            level = logger.level(record.levelname).name
+            level = self.logger.level(record.levelname).name
         except ValueError:
             level = record.levelno
         frame, depth = logging.currentframe(), 2
         while frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
             depth += 1
-        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
-
-
-# loguru default format
-# '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
-# '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
-
-logFormatInfo = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | ' \
-                '<k>{message}</k>'
-logFormatDebug = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
-                 '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
-
-logFiles: typing.List[str] = ['bot.log', 'botApi.log', 'aria.log', 'tqueue.binlog', 'webhooks_db.binlog']
-
-warnings.filterwarnings("ignore")
-
-if os.path.exists(logFiles[0]):
-    os.remove(logFiles[0])
-
-logger = loguru.logger
-logger.remove()
-logger.add(sys.stderr, level='DEBUG', format=logFormatDebug)
-logger.add(logFiles[0], level='DEBUG', format=logFormatDebug, rotation='24h')
-logger.disable('apscheduler')
-logging.basicConfig(handlers=[InterceptHandler()], level=0)
+        self.logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
