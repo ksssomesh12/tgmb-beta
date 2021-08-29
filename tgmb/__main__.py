@@ -2,7 +2,7 @@ from . import *
 
 
 if __name__ == '__main__':
-    botHelper = BotHelper()
-    botHelper.botStart()
-    botHelper.botIdle()
-    botHelper.botStop()
+    botWrapper = BotWrapper()
+    botWrapper.Start()
+    botWrapper.Idle()
+    botWrapper.Stop()

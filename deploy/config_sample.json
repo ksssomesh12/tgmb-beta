@@ -35,7 +35,17 @@
       "chatType": "#chatType-05",
       "chatName": "#chatName-05"}
   },
-  "ariaRpcSecret": "tgmb-beta",
+  "ariaGlobalOpts": {
+    "allow-overwrite": "true",
+    "bt-max-peers": "0",
+    "follow-torrent": "mem",
+    "max-connection-per-server": "8",
+    "max-overall-upload-limit": "1K",
+    "min-split-size": "10M",
+    "seed-time": "0.01",
+    "split": "10"
+  },
   "dlRootDir": "dl",
+  "logLevel": "INFO",
   "statusUpdateInterval": "5"
 }
