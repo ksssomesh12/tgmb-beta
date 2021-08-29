@@ -46,5 +46,6 @@
     "split": "10"
   },
   "dlRootDir": "dl",
+  "logLevel": "INFO",
   "statusUpdateInterval": "5"
 }

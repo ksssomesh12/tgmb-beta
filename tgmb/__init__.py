@@ -46,6 +46,9 @@ class BaseHelper:
         self.botHelper = botHelper
 
     def initHelper(self) -> None:
+        self.initLogger()
+
+    def initLogger(self) -> None:
         self.logger = self.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
 
 
@@ -86,7 +89,10 @@ class BotHelper(BaseHelper):
 
     def initHelper(self) -> None:
         self.envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
+        self.logDebugFile = 'log.debug'
+        self.isChangeLogLevel: bool = False
         self.restartJsonFile = 'restart.json'
+        self.restartMsgInfo: typing.Dict[str, int] = {}
         self.restartVars = (self.configHelper.jsonFileLoad(self.restartJsonFile) if os.path.exists(self.restartJsonFile) else {})
         self.initSubHelpers()
         super().initHelper()
@@ -104,6 +110,7 @@ class BotHelper(BaseHelper):
         self.dispatcher = self.updater.dispatcher
         self.bot = self.updater.bot
         self.envVars['dlRootDirPath'] = os.path.join(self.envVars['currWorkDir'], self.configHelper.configVars[self.configHelper.optVars[2]])
+        self.checkLogLevel()
 
     def initSubHelpers(self):
         self.loggingHelper.initHelper()
@@ -121,12 +128,13 @@ class BotHelper(BaseHelper):
         self.compressionHelper.initHelper()
         self.decompressionHelper.initHelper()
         self.statusHelper.initHelper()
+        self.mirrorListenerHelper.initHelper()
 
     def apiServerStart(self) -> None:
-        if self.restartVars:
+        if self.restartVars and self.restartVars['botApiServerPid']:
             self.apiServerPid = self.restartVars['botApiServerPid']
             self.logger.info(f'botApiServer Already Running (pid {self.apiServerPid}) !')
-        else:
+        if not self.apiServerPid:
             self.apiServerPid = subprocess.Popen(self.apiServerStartCmd).pid
             self.logger.info(f'botApiServer Started (pid {self.apiServerPid}) !')
 
@@ -144,6 +152,21 @@ class BotHelper(BaseHelper):
         os.kill(self.apiServerPid, signal.SIGTERM)
         self.logger.info(f"botApiServer terminated (pid {self.apiServerPid})")
 
+    def checkLogLevel(self):
+        if self.configHelper.configVars[self.configHelper.optVars[3]] == self.configHelper.optVals[3]:
+            if os.path.exists(self.logDebugFile):
+                self.isChangeLogLevel = True
+                os.remove(self.logDebugFile)
+        else:
+            if not os.path.exists(self.logDebugFile):
+                self.isChangeLogLevel = True
+                open(self.logDebugFile, 'wt').write('')
+
+    def ifChangeLogLevel(self):
+        if self.isChangeLogLevel:
+            self.logger.info('Changing logLevel...')
+            self.botRestart()
+
     def addAllHandlers(self) -> None:
         for cmdHandler in self.botCmdHelper.cmdHandlers:
             self.dispatcher.add_handler(cmdHandler)
@@ -152,6 +175,15 @@ class BotHelper(BaseHelper):
         unknownHandler = telegram.ext.MessageHandler(filters=telegram.ext.Filters.command,
                                                      callback=self.botCmdHelper.unknownCallBack, run_async=True)
         self.dispatcher.add_handler(unknownHandler)
+
+    def botRestart(self) -> None:
+        self.ariaHelper.api.remove_all(force=True)
+        self.cleanDlRootDir()
+        self.logger.info('Restarting the Bot...')
+        restartJsonDict = {'restartMsgInfo': self.restartMsgInfo, 'ariaRpcSecret': self.ariaHelper.rpcSecret,
+                           'ariaDaemonPid': self.ariaHelper.daemonPid, 'botApiServerPid': self.apiServerPid}
+        self.configHelper.jsonFileWrite(self.restartJsonFile, restartJsonDict)
+        os.execl(sys.executable, sys.executable, '-m', 'tgmb')
 
     def botStart(self) -> None:
         self.cleanDlRootDir()
@@ -170,7 +202,9 @@ class BotHelper(BaseHelper):
         self.logger.info("Bot Started !")
 
     def botIdle(self) -> None:
-        self.onRestart()
+        self.ifUpdateRestartMsg()
+        self.configHelper.ifFixConfigJson()
+        self.ifChangeLogLevel()
         self.updaterIdle()
 
     def botStop(self) -> None:
@@ -180,10 +214,11 @@ class BotHelper(BaseHelper):
         self.mirrorListenerHelper.stopWebhookServer()
         self.logger.info("Bot Stopped !")
 
-    def onRestart(self) -> None:
-        if self.restartVars:
+    def ifUpdateRestartMsg(self) -> None:
+        if self.restartVars and self.restartVars['restartMsgInfo']:
             self.bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
-                                     chat_id=self.restartVars['chatId'], message_id=self.restartVars['msgId'])
+                                     chat_id=self.restartVars['restartMsgInfo']['chatId'],
+                                     message_id=self.restartVars['restartMsgInfo']['msgId'])
             os.remove(self.restartJsonFile)
 
     def cleanDlRootDir(self) -> None:
@@ -218,15 +253,17 @@ class ConfigHelper(BaseHelper):
         self.dynamicJsonFile = 'dynamic.json'
         self.fileidJsonFile = 'fileid.json'
         self.configFiles: [str] = [self.configJsonFile, self.configJsonBakFile]
-        self.configVars: typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.Dict[str, typing.Union[str, typing.List[str]]]]]]]]]]] = {}
+        self.configVars: typing.Dict = {}
         self.reqVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                                'googleDriveAuth', 'googleDriveUploadFolderIds']
-        self.optVars: typing.List[str] = ['ariaGlobalOpts', 'authorizedChats', 'dlRootDir', 'statusUpdateInterval']
+        self.optVars: typing.List[str] = ['ariaGlobalOpts', 'authorizedChats', 'dlRootDir', 'logLevel',
+                                          'statusUpdateInterval']
         self.optVals: typing.List[typing.Union[str, typing.Dict]] = \
             [{'allow-overwrite': 'true', 'bt-max-peers': '0', 'follow-torrent': 'mem',
               'max-connection-per-server': '8', 'max-overall-upload-limit': '1K',
-              'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'}, {}, 'dl', '5']
+              'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'}, {}, 'dl', 'INFO', '5']
         self.emptyVals: typing.List[typing.Union[str, typing.Dict]] = ['', ' ', {}]
+        self.isFixConfigJson: bool = False
         self.configVarsLoad()
         self.configVarsCheck()
 
@@ -259,19 +296,9 @@ class ConfigHelper(BaseHelper):
                                                                         self.botHelper.envVars[self.botHelper.getHelper.fileIdKey(configFile)]))
 
     def configVarsCheck(self) -> None:
-        for reqVar in self.reqVars:
-            try:
-                if self.configVars[reqVar] in self.emptyVals:
-                    raise KeyError
-            except KeyError:
-                self.logger.error(f"Required Environment Variable Missing: '{reqVar}' ! Exiting...")
-                exit(1)
-        for optVar in self.optVars:
-            try:
-                if self.configVars[optVar] in self.emptyVals:
-                    raise KeyError
-            except KeyError:
-                self.configVars[optVar] = self.optVals[self.optVars.index(optVar)]
+        self.reqVarsCheck()
+        self.optVarsCheck()
+        self.unknownVarsCheck()
 
     def configVarsLoad(self) -> None:
         if os.path.exists(self.dynamicJsonFile):
@@ -295,6 +322,36 @@ class ConfigHelper(BaseHelper):
             self.configFileCheck(configFile)
         self.configVars = self.jsonFileLoad(self.configJsonFile)
 
+    def reqVarsCheck(self):
+        for reqVar in self.reqVars:
+            try:
+                if self.configVars[reqVar] in self.emptyVals:
+                    raise KeyError
+            except KeyError:
+                self.isFixConfigJson = True
+                self.logger.error(f"Required Environment Variable Missing: '{reqVar}' ! Exiting...")
+                exit(1)
+
+    def optVarsCheck(self):
+        for optVar in self.optVars:
+            try:
+                if self.configVars[optVar] in self.emptyVals:
+                    raise KeyError
+            except KeyError:
+                self.isFixConfigJson = True
+                self.configVars[optVar] = self.optVals[self.optVars.index(optVar)]
+
+    def unknownVarsCheck(self):
+        for configVar in list(self.configVars.keys()):
+            if configVar not in self.reqVars + self.optVars:
+                self.isFixConfigJson = True
+                self.configVars.pop(configVar)
+
+    def ifFixConfigJson(self):
+        if self.isFixConfigJson:
+            self.logger.info(f"Fixing '{self.configJsonFile}' (Not Found optConfigVars / Found unknownConfigVars) ...")
+            self.updateConfigJson()
+
     @staticmethod
     def jsonFileLoad(jsonFileName: str) -> typing.Dict:
         return json.loads(open(jsonFileName, 'rt', encoding='utf-8').read())
@@ -311,14 +368,16 @@ class ConfigHelper(BaseHelper):
         self.updateConfigJson()
 
     def updateConfigJson(self) -> None:
+        self.logger.info(f"Updating '{self.configJsonFile}'...")
         shutil.copy(os.path.join(self.botHelper.envVars['currWorkDir'], self.configJsonFile),
                     os.path.join(self.botHelper.envVars['currWorkDir'], self.configJsonBakFile))
-        self.jsonFileWrite(self.configJsonFile, {**self.jsonFileLoad(self.configJsonFile), **self.configVars})
+        self.jsonFileWrite(self.configJsonFile, self.configVars)
         if self.botHelper.envVars['dynamicConfig']:
             self.configFileSync([self.configJsonFile, self.configJsonBakFile])
             self.updateFileidJson()
 
     def updateFileidJson(self) -> None:
+        self.logger.info(f"Updating '{self.fileidJsonFile}'...")
         fileidJsonDict: typing.Dict[str, str] = {}
         for configFile in self.configFiles:
             configFileIdKey = self.botHelper.getHelper.fileIdKey(configFile)
@@ -431,12 +490,13 @@ class GetHelper(BaseHelper):
 
 
 class LoggingHelper(BaseHelper):
-    LogFormatDefault = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
-                       '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
-    LogFormatInfo = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | ' \
-                    '<k>{message}</k>'
-    LogFormatDebug = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
-                     '<cyan>{name}</cyan>:<cyan>{extra[classname]}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
+    LogFormats: typing.Dict[str, str] = \
+        {'DEFAULT': '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | '
+                    '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>',
+         'INFO': '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | <k>{message}</k>',
+         'DEBUG': '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | '
+                  '<cyan>{name}</cyan>:<cyan>{extra[classname]}</cyan>:<cyan>{function}()</cyan>:<cyan>{line}</cyan> | '
+                  '<k>{message}</k>'}
 
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
@@ -446,15 +506,18 @@ class LoggingHelper(BaseHelper):
                                            'tqueue.binlog', 'webhooks_db.binlog']
         if os.path.exists(self.logFiles[0]):
             os.remove(self.logFiles[0])
-        self.logFormat = self.LogFormatDebug
+        self.logLevel = (list(self.LogFormats.keys())[2] if os.path.exists(self.botHelper.logDebugFile) else list(self.LogFormats.keys())[1])
+        self.logDisableModules: typing.List[str] = ['apscheduler', 'telegram.vendor.ptb_urllib3.urllib3.connectionpool']
         self.logger = loguru.logger
         self.logger.remove()
-        self.logger.add(sys.stderr, level='DEBUG', format=self.logFormat)
-        self.logger.add(self.logFiles[0], level='DEBUG', format=self.logFormat, rotation='24h')
+        self.logger.add(sys.stderr, level=self.logLevel, format=self.LogFormats[self.logLevel])
+        self.logger.add(self.logFiles[0], level=self.logLevel, format=self.LogFormats[self.logLevel], rotation='24h')
         self.logger.configure(extra={'classname': 'None'})
-        self.logger.disable('apscheduler')
         logging.basicConfig(handlers=[InterceptHandler(self.logger)], level=0)
         warnings.filterwarnings('ignore')
+        if self.logLevel == list(self.LogFormats.keys())[1]:
+            for logDisableModule in self.logDisableModules:
+                self.logger.disable(logDisableModule)
 
 
 class ThreadingHelper(BaseHelper):
@@ -571,16 +634,11 @@ class BotCommandHelper(BaseHelper):
                                        reply_to_message_id=update.message.message_id)
 
     def restartCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
-        self.logger.info('Restarting the Bot...')
-        restartMsg: telegram.Message = self.botHelper.bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML', chat_id=update.message.chat_id,
-                                                                      reply_to_message_id=update.message.message_id)
-        self.botHelper.ariaHelper.api.remove_all(force=True)
-        self.botHelper.cleanDlRootDir()
-        restartJsonDict = {'chatId': f'{restartMsg.chat_id}', 'ariaDaemonPid': self.botHelper.ariaHelper.daemonPid,
-                           'msgId': f'{restartMsg.message_id}', 'botApiServerPid': self.botHelper.apiServerPid,
-                           'ariaRpcSecret': self.botHelper.ariaHelper.rpcSecret}
-        self.botHelper.configHelper.jsonFileWrite(self.botHelper.restartJsonFile, restartJsonDict)
-        os.execl(sys.executable, sys.executable, '-m', 'tgmb')
+        restartMsg = self.botHelper.bot.sendMessage(text='Restarting the Bot...', parse_mode='HTML',
+                                                    chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
+        self.botHelper.restartMsgInfo['chatId'] = restartMsg.chat_id
+        self.botHelper.restartMsgInfo['msgId'] = restartMsg.message_id
+        self.botHelper.botRestart()
 
     def statusCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name='statusCallBack-addStatus',
@@ -935,7 +993,7 @@ class MirrorConvHelper(BaseHelper):
         query = update.callback_query
         query.answer()
         if query.data == '1':
-            self.logger.info(f"addMirror - ['{self.mirrorInfo.downloadUrl}']")
+            self.logger.info(f"addMirror - ({self.mirrorInfo.uid}) ['{self.mirrorInfo.downloadUrl}']")
             self.botHelper.mirrorHelper.addMirror(self.mirrorInfo)
             query.edit_message_text(text='addMirror Succeeded !')
             return telegram.ext.ConversationHandler.END
@@ -1466,10 +1524,10 @@ class AriaHelper(BaseHelper):
         return self.api.get_download(gid)
 
     def daemonStart(self) -> None:
-        if self.botHelper.restartVars:
+        if self.botHelper.restartVars and self.botHelper.restartVars['ariaDaemonPid']:
             self.daemonPid = self.botHelper.restartVars['ariaDaemonPid']
-            self.logger.info(f'botApiServer Already Running (pid {self.daemonPid}) !')
-        else:
+            self.logger.info(f'ariaDaemon Already Running (pid {self.daemonPid}) !')
+        if not self.daemonPid:
             self.daemonPid = subprocess.Popen(self.daemonStartCmd).pid
             self.logger.info(f"ariaDaemon started (pid {self.daemonPid}) !")
 
@@ -1927,7 +1985,7 @@ class StatusHelper(BaseHelper):
         self.updaterLock = threading.Lock()
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
-        self.statusUpdateInterval: int = int(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[3]])
+        self.statusUpdateInterval: int = int(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]])
         self.msgId: int = 0
         self.chatId: int = 0
         self.lastStatusMsgId: int = 0
