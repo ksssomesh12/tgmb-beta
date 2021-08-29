@@ -46,7 +46,7 @@ class BaseHelper:
         self.botHelper = botHelper
 
     def initHelper(self) -> None:
-        self.logger = self.botHelper.loggingHelper.logger
+        self.logger = self.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
 
 
 class BotWrapper:
@@ -436,7 +436,7 @@ class LoggingHelper(BaseHelper):
     LogFormatInfo = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <6}</level> | ' \
                     '<k>{message}</k>'
     LogFormatDebug = '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | ' \
-                     '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
+                     '<cyan>{name}</cyan>:<cyan>{extra[classname]}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <k>{message}</k>'
 
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
@@ -446,10 +446,12 @@ class LoggingHelper(BaseHelper):
                                            'tqueue.binlog', 'webhooks_db.binlog']
         if os.path.exists(self.logFiles[0]):
             os.remove(self.logFiles[0])
+        self.logFormat = self.LogFormatDebug
         self.logger = loguru.logger
         self.logger.remove()
-        self.logger.add(sys.stderr, level='DEBUG', format=self.LogFormatDebug)
-        self.logger.add(self.logFiles[0], level='DEBUG', format=self.LogFormatDebug, rotation='24h')
+        self.logger.add(sys.stderr, level='DEBUG', format=self.logFormat)
+        self.logger.add(self.logFiles[0], level='DEBUG', format=self.logFormat, rotation='24h')
+        self.logger.configure(extra={'classname': 'None'})
         self.logger.disable('apscheduler')
         logging.basicConfig(handlers=[InterceptHandler(self.logger)], level=0)
         warnings.filterwarnings('ignore')
@@ -2003,7 +2005,7 @@ class StatusHelper(BaseHelper):
 class WebhookServer:
     def __init__(self, botHelper: BotHelper):
         self.botHelper = botHelper
-        self.logger = self.botHelper.loggingHelper.logger
+        self.logger = self.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8448
         self.webhookPath: str = 'mirrorListener'
@@ -2069,7 +2071,7 @@ class WebhookHandler(tornado.web.RequestHandler):
 
     def initialize(self, botHelper: BotHelper) -> None:
         self.botHelper = botHelper
-        self.logger = self.botHelper.loggingHelper.logger
+        self.logger = self.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
 
     def set_default_headers(self) -> None:
         self.set_header("Content-Type", 'application/json; charset="utf-8"')
@@ -2122,13 +2124,13 @@ class InterceptHandler(logging.Handler):
         self.logger = logger
         super().__init__()
 
-    def emit(self, record):
+    def emit(self, logRecord: logging.LogRecord):
         try:
-            level = self.logger.level(record.levelname).name
+            level = self.logger.level(logRecord.levelname).name
         except ValueError:
-            level = record.levelno
+            level = logRecord.levelno
         frame, depth = logging.currentframe(), 2
         while frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
             depth += 1
-        self.logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+        self.logger.opt(depth=depth, exception=logRecord.exc_info).log(level, logRecord.getMessage())
