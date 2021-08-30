@@ -47,5 +47,6 @@
   },
   "dlRootDir": "dl",
   "logLevel": "INFO",
-  "statusUpdateInterval": "5"
+  "statusUpdateInterval": "5",
+  "trackersListUrl": "https://trackerslist.com/all_aria2.txt"
 }

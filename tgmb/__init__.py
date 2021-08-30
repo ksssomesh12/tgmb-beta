@@ -7,6 +7,7 @@
 # TODO: Code for direct link generation
 import aria2p
 import asyncio
+import copy
 import googleapiclient.discovery
 import googleapiclient.errors
 import googleapiclient.http
@@ -192,9 +193,10 @@ class BotHelper(BaseHelper):
         self.apiServerStart()
         self.ariaHelper.daemonCheck()
         self.apiServerCheck()
+        self.ariaHelper.dlTrackersList()
         self.ariaHelper.globalOptsGet()
-        self.ariaHelper.startListener()
         self.ariaHelper.globalOptsSet()
+        self.ariaHelper.startListener()
         self.googleDriveHelper.authorizeApi()
         self.addAllHandlers()
         self.updaterStart()
@@ -216,7 +218,7 @@ class BotHelper(BaseHelper):
 
     def ifUpdateRestartMsg(self) -> None:
         if self.restartVars and self.restartVars['restartMsgInfo']:
-            self.bot.editMessageText(text='Bot Restarted Successfully !', parse_mode='HTML',
+            self.bot.editMessageText(text='Bot Restarted !', parse_mode='HTML',
                                      chat_id=self.restartVars['restartMsgInfo']['chatId'],
                                      message_id=self.restartVars['restartMsgInfo']['msgId'])
             os.remove(self.restartJsonFile)
@@ -257,11 +259,12 @@ class ConfigHelper(BaseHelper):
         self.reqVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                                'googleDriveAuth', 'googleDriveUploadFolderIds']
         self.optVars: typing.List[str] = ['ariaGlobalOpts', 'authorizedChats', 'dlRootDir', 'logLevel',
-                                          'statusUpdateInterval']
+                                          'statusUpdateInterval', 'trackersListUrl']
         self.optVals: typing.List[typing.Union[str, typing.Dict]] = \
             [{'allow-overwrite': 'true', 'bt-max-peers': '0', 'follow-torrent': 'mem',
               'max-connection-per-server': '8', 'max-overall-upload-limit': '1K',
-              'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'}, {}, 'dl', 'INFO', '5']
+              'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'},
+             {}, 'dl', 'INFO', '5', 'https://trackerslist.com/all_aria2.txt']
         self.emptyVals: typing.List[typing.Union[str, typing.Dict]] = ['', ' ', {}]
         self.isFixConfigJson: bool = False
         self.configVarsLoad()
@@ -368,16 +371,17 @@ class ConfigHelper(BaseHelper):
         self.updateConfigJson()
 
     def updateConfigJson(self) -> None:
-        self.logger.info(f"Updating '{self.configJsonFile}'...")
+        self.logger.info(f"Updating '{self.configJsonFile}' ...")
         shutil.copy(os.path.join(self.botHelper.envVars['currWorkDir'], self.configJsonFile),
                     os.path.join(self.botHelper.envVars['currWorkDir'], self.configJsonBakFile))
         self.jsonFileWrite(self.configJsonFile, self.configVars)
         if self.botHelper.envVars['dynamicConfig']:
             self.configFileSync([self.configJsonFile, self.configJsonBakFile])
             self.updateFileidJson()
+        self.logger.info(f"Updated '{self.configJsonFile}' !")
 
     def updateFileidJson(self) -> None:
-        self.logger.info(f"Updating '{self.fileidJsonFile}'...")
+        self.logger.info(f"Updating '{self.fileidJsonFile}' ...")
         fileidJsonDict: typing.Dict[str, str] = {}
         for configFile in self.configFiles:
             configFileIdKey = self.botHelper.getHelper.fileIdKey(configFile)
@@ -387,6 +391,7 @@ class ConfigHelper(BaseHelper):
             fileidJsonDict[configFileHashKey] = self.botHelper.envVars[configFileHashKey]
         self.jsonFileWrite(self.fileidJsonFile, fileidJsonDict)
         self.configFileSync([self.fileidJsonFile])
+        self.logger.info(f"Updated '{self.fileidJsonFile}' !")
 
 
 class GetHelper(BaseHelper):
@@ -1172,6 +1177,7 @@ class AriaHelper(BaseHelper):
         self.daemonStartCmd: typing.List[str] = ['aria2c', '--quiet', '--enable-rpc', f'--rpc-secret={self.rpcSecret}',
                                                  '--rpc-max-request-size=32M', f'--log={self.botHelper.loggingHelper.logFiles[2]}']
         self.globalOpts: aria2p.Options
+        self.trackersListFile = 'trackers.list'
         self.gids: typing.Dict[str, str] = {}
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
@@ -1212,10 +1218,26 @@ class AriaHelper(BaseHelper):
         self.globalOpts = self.api.get_global_options()
 
     def globalOptsSet(self):
-        userOpts = self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]]
+        userOpts = copy.deepcopy(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[0]])
+        userOpts['bt-tracker'] = open(self.trackersListFile, 'rt').read()
         for optKey in list(userOpts.keys()):
             optSetResponse = self.globalOpts.set(optKey, userOpts[optKey])
             self.logger.debug(f"(ariaGlobalOpts) ({optSetResponse}) ['{optKey}' : '{userOpts[optKey]}']")
+
+    def dlTrackersList(self):
+        if os.path.exists(self.trackersListFile):
+            os.remove(self.trackersListFile)
+        self.logger.debug(f"Downloading '{self.trackersListFile}' ...")
+        dlObj = self.api.add_uris(uris=[self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[5]]],
+                                  options={'out': self.trackersListFile})
+        while dlObj.status == 'active':
+            time.sleep(0.1)
+            dlObj.update()
+        if os.path.exists(self.trackersListFile):
+            self.logger.debug(f"Downloaded '{self.trackersListFile}' !")
+        else:
+            self.logger.debug(f"Download Failed - '{self.trackersListFile}' ! Retrying...")
+            self.dlTrackersList()
 
     def startListener(self) -> None:
         self.api.listen_to_notifications(threaded=True,
