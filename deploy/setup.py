@@ -220,6 +220,96 @@ if __name__ == '__main__':
     print('Setup Completed !')
     exit(0)
 
+# sample - config.json
+# ----- BEGINS ----- #
+# {
+#   "botToken": "",
+#   "botOwnerId": "",
+#   "telegramApiId": "",
+#   "telegramApiHash": "",
+#   "googleDriveAuth": {
+#     "authType": "",
+#     "authInfos": {
+#       "credsJson": {
+#         "installed": {
+#           "client_id": "",
+#           "project_id": "",
+#           "auth_uri": "",
+#           "token_uri": "",
+#           "auth_provider_x509_cert_url": "",
+#           "client_secret": "",
+#           "redirect_uris": [
+#             "",
+#             ""
+#           ]
+#         }
+#       },
+#       "saJson": {
+#         "type": "",
+#         "project_id": "",
+#         "private_key_id": "",
+#         "private_key": "",
+#         "client_email": "",
+#         "client_id": "",
+#         "auth_uri": "",
+#         "token_uri": "",
+#         "auth_provider_x509_cert_url": "",
+#         "client_x509_cert_url": ""
+#       },
+#       "tokenJson": {
+#         "token": "",
+#         "refresh_token": "",
+#         "token_uri": "",
+#         "client_id": "",
+#         "client_secret": "",
+#         "scopes": [
+#           ""
+#         ],
+#         "expiry": ""
+#       }
+#     }
+#   },
+#   "googleDriveUploadFolderIds": {
+#     "#folderId-01": "#folderDescription-01",
+#     "#folderId-02": "#folderDescription-02",
+#     "#folderId-03": "#folderDescription-03",
+#     "#folderId-04": "#folderDescription-04",
+#     "#folderId-05": "#folderDescription-05"
+#   },
+#   "authorizedChats": {
+#     "#chatId-01": {
+#       "chatType": "#chatType-01",
+#       "chatName": "#chatName-01"},
+#     "#chatId-02": {
+#       "chatType": "#chatType-02",
+#       "chatName": "#chatName-02"},
+#     "#chatId-03": {
+#       "chatType": "#chatType-03",
+#       "chatName": "#chatName-03"},
+#     "#chatId-04": {
+#       "chatType": "#chatType-04",
+#       "chatName": "#chatName-04"},
+#     "#chatId-05": {
+#       "chatType": "#chatType-05",
+#       "chatName": "#chatName-05"}
+#   },
+#   "ariaGlobalOpts": {
+#     "allow-overwrite": "true",
+#     "bt-max-peers": "0",
+#     "follow-torrent": "mem",
+#     "max-connection-per-server": "8",
+#     "max-overall-upload-limit": "1K",
+#     "min-split-size": "10M",
+#     "seed-time": "0.01",
+#     "split": "10"
+#   },
+#   "dlRootDir": "dl",
+#   "logLevel": "INFO",
+#   "statusUpdateInterval": "5",
+#   "trackersListUrl": "https://trackerslist.com/all_aria2.txt"
+# }
+# ------ ENDS ------ #
+
 # sample - dynamic.json
 # ----- BEGINS ----- #
 # {
