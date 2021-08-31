@@ -65,7 +65,7 @@ def jsonFileWrite(jsonFileName: str, jsonDict: dict) -> None:
 
 
 def authorizeApi() -> None:
-    global configVars, oauthCreds, tokenJson
+    global configVars, oauthCreds
     if isUserAuth:
         if not oauthCreds or not oauthCreds.valid:
             try:
@@ -74,10 +74,10 @@ def authorizeApi() -> None:
                 else:
                     raise google.auth.exceptions.RefreshError
             except google.auth.exceptions.RefreshError:
-                appFlow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_config(credsJson, oauthScopes)
+                appFlow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_config(configVars['googleDriveAuth']['authInfos']['credsJson'], oauthScopes)
                 oauthCreds = appFlow.run_console()
             finally:
-                tokenJson = json.loads(oauthCreds.to_json())
+                configVars['googleDriveAuth']['authInfos']['tokenJson'] = json.loads(oauthCreds.to_json())
 
 
 def buildService() -> typing.Any:
@@ -140,11 +140,6 @@ configTemplateVars: typing.Dict = \
      'authorizedChats': {}, 'dlRootDir': 'dl', 'logLevel': 'INFO', 'statusUpdateInterval': '5',
      'trackersListUrl': 'https://trackerslist.com/all_aria2.txt'}
 envVars: typing.Dict = {'dlWaitTime': '5'}
-authType: str
-authInfos: typing.Dict
-credsJson: typing.Dict
-saJson: typing.Dict
-tokenJson: typing.Dict
 
 if __name__ == '__main__':
     jsonFileWrite(configTemplateJsonFile, configTemplateVars)
@@ -173,29 +168,25 @@ if __name__ == '__main__':
         print(f"Place '{configJsonFile}' in the Current Working Directory and Re-run the Setup !")
         exit(0)
     configVars = {**configTemplateVars, **jsonFileLoad(configJsonFile)}
-    authType = configVars['googleDriveAuth']['authType']
-    authInfos = configVars['googleDriveAuth']['authInfos']
     # TODO: may be add checkConfigVars() function
     for jsonFile in [credsJsonFile, saJsonFile, tokenJsonFile]:
         if os.path.exists(jsonFile):
-            authInfos[getFileIdKey(jsonFile).replace(keySuffixId, '')] = jsonFileLoad(jsonFile)
+            authInfoKey = getFileIdKey(jsonFile).replace(keySuffixId, '')
+            configVars['googleDriveAuth']['authInfos'][authInfoKey] = jsonFileLoad(jsonFile)
             os.remove(jsonFile)
-    credsJson = authInfos[getFileIdKey(credsJsonFile).replace(keySuffixId, '')]
-    saJson = authInfos[getFileIdKey(saJsonFile).replace(keySuffixId, '')]
-    tokenJson = authInfos[getFileIdKey(tokenJsonFile).replace(keySuffixId, '')]
     if isUserAuth:
-        authType = 'userAuth'
-        if not credsJson:
+        configVars['googleDriveAuth']['authType'] = 'userAuth'
+        if not configVars['googleDriveAuth']['authInfos']['credsJson']:
             print(f"Place '{credsJsonFile}' in the Current Working Directory and Re-run the Setup !")
             exit(0)
-        if tokenJson:
-            oauthCreds = google.oauth2.credentials.Credentials.from_authorized_user_info(tokenJson, oauthScopes)
+        if configVars['googleDriveAuth']['authInfos']['tokenJson']:
+            oauthCreds = google.oauth2.credentials.Credentials.from_authorized_user_info(configVars['googleDriveAuth']['authInfos']['tokenJson'], oauthScopes)
     else:
-        authType = 'saAuth'
-        if not saJson:
+        configVars['googleDriveAuth']['authType'] = 'saAuth'
+        if not configVars['googleDriveAuth']['authInfos']['saJson']:
             print(f"Place '{saJsonFile}' in the Current Working Directory and Re-run the Setup !")
             exit(0)
-        oauthCreds = google.oauth2.service_account.Credentials.from_service_account_info(saJson)
+        oauthCreds = google.oauth2.service_account.Credentials.from_service_account_info(configVars['googleDriveAuth']['authInfos']['saJson'])
     authorizeApi()
     jsonFileWrite(configJsonFile, configVars)
     if os.path.exists(configJsonBakFile):
