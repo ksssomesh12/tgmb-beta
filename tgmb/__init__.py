@@ -1139,17 +1139,14 @@ class MirrorHelper(BaseHelper):
             mirrorInfo.tag = msg.from_user.username
             if re.findall(UrlRegex.googleDrive, mirrorInfo.downloadUrl):
                 mirrorInfo.isGoogleDriveDownload = True
-                mirrorInfo.googleDriveDownloadSourceId = self.botHelper.googleDriveHelper.getIdFromUrl(mirrorInfo.downloadUrl)
             elif re.findall(UrlRegex.mega, mirrorInfo.downloadUrl):
                 mirrorInfo.isMegaDownload = True
             elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
                 mirrorInfo.isYouTubeDownload = True
             elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
                 mirrorInfo.isAriaDownload = True
-                mirrorInfo.isMagnet = True
             elif re.findall(UrlRegex.generalUrl, mirrorInfo.downloadUrl):
                 mirrorInfo.isAriaDownload = True
-                mirrorInfo.isUrl = True
             else:
                 isValidDl = False
         except IndexError:
@@ -1187,9 +1184,9 @@ class AriaHelper(BaseHelper):
         self.gids: typing.Dict[str, str] = {}
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
-        if mirrorInfo.isMagnet:
+        if re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
             self.gids[mirrorInfo.uid] = self.api.add_magnet(mirrorInfo.downloadUrl, options={'dir': mirrorInfo.path}).gid
-        if mirrorInfo.isUrl:
+        if re.findall(UrlRegex.generalUrl, mirrorInfo.downloadUrl):
             self.gids[mirrorInfo.uid] = self.api.add_uris([mirrorInfo.downloadUrl], options={'dir': mirrorInfo.path}).gid
 
     def cancelDownload(self, uid: str) -> None:
@@ -1316,7 +1313,7 @@ class GoogleDriveHelper(BaseHelper):
             exit(1)
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
-        sourceId = mirrorInfo.googleDriveDownloadSourceId
+        sourceId = self.getIdFromUrl(mirrorInfo.downloadUrl)
         self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: self.getSizeById(sourceId)})
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
@@ -1505,12 +1502,12 @@ class GoogleDriveHelper(BaseHelper):
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
 
-# TODO: check and set flag if megaAuth is empty
 class MegaHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
         self.apiHelper = MegaApiHelper(self.botHelper)
 
+    # TODO: check and set flag if megaAuth is empty
     def initHelper(self) -> None:
         super().initHelper()
         self.initSubHelpers()
@@ -2208,11 +2205,8 @@ class MirrorInfo:
         self.isTorrent: bool = False
         self.numSeeders: int = 0
         self.numLeechers: int = 0
-        self.googleDriveDownloadSourceId: str = ''
         self.uploadUrl: str = ''
         self.googleDriveUploadFolderId: str = ''
-        self.isUrl: bool = False
-        self.isMagnet: bool = False
         self.isAriaDownload: bool = False
         self.isGoogleDriveDownload: bool = False
         self.isMegaDownload: bool = False
