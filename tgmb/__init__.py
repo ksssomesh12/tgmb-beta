@@ -1992,6 +1992,175 @@ class MirrorListenerHelper(BaseHelper):
         self.botHelper.mirrorHelper.mirrorInfos[uid].progressPercent = 0
 
 
+class MegaApiHelper(BaseHelper):
+    def __init__(self, botHelper: BotHelper):
+        super().__init__(botHelper)
+
+    def initHelper(self) -> None:
+        self.api = mega.MegaApi(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]]['apiKey'], None, None, 'tgmb-beta')
+        self.executor = MegaAsyncExecutor(self)
+        self.listener = MegaApiListener(self)
+        self.cloudDriveNode: mega.MegaNode
+        self.currWorkDir: mega.MegaNode
+        super().initHelper()
+
+    def cd(self, dirName: str, rootNode: mega.MegaNode):
+        self.logger.debug('*** start: cd ***')
+        dirNode = self.api.getNodeByPath(dirName, rootNode)
+        if dirNode is None:
+            self.logger.warning(f"No Such Directory: '{dirName}'")
+        elif dirNode.getType() == mega.MegaNode.TYPE_FOLDER:
+            self.logger.debug(f"cd '{dirName}' in '{rootNode.getName()}'")
+            self.currWorkDir = dirNode
+        else:
+            self.logger.warning(f"Not a Directory: '{dirName}'")
+        self.logger.debug('*** done: cd ***')
+
+    def delete(self, sourceName: str, rootNode: mega.MegaNode):
+        self.logger.debug('*** start: delete ***')
+        sourceNode = self.api.getNodeByPath(sourceName, rootNode)
+        if sourceNode is not None:
+            self.logger.debug(f"delete '{sourceName}' in '{rootNode.getName()}'")
+            self.executor.do(self.api.remove, (sourceNode,))
+        else:
+            self.logger.warning(f"Node not found: '{sourceName}'")
+        self.logger.debug('*** done: delete ***')
+
+    def download(self, fileName: str, rootNode: mega.MegaNode):
+        self.logger.debug('*** start: download ***')
+        fileNode = self.api.getNodeByPath(fileName, rootNode)
+        if fileNode is not None:
+            self.logger.debug(f"download '{fileName}' in '{rootNode.getName()}'")
+            self.executor.do(self.api.startDownload, (fileNode, fileNode.getName()))
+        else:
+            self.logger.warning(f"Node Not Found: {fileName}")
+        self.logger.debug('*** done: download ***')
+
+    def downloadNode(self, node: mega.MegaNode, dlPath: str):
+        self.logger.debug('*** start: download node ***')
+        self.executor.do(self.api.startDownload, (node, os.path.join(dlPath, node.getName())))
+        self.logger.debug('*** done: download node ***')
+
+    def getNode(self, nodeLink: str):
+        self.logger.debug('*** start: get node ***')
+        self.executor.do(self.api.getPublicNode, (nodeLink,))
+        self.logger.debug('*** done: get node ***')
+
+    def login(self):
+        self.logger.debug('*** start: login ***')
+        self.executor.do(self.api.login, (self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]]['emailId'],
+                                          self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]]['passPhrase']))
+        self.cloudDriveNode = self.listener.rootNode
+        self.currWorkDir = self.cloudDriveNode
+        self.logger.debug('*** done: login ***')
+
+    def logout(self):
+        self.logger.debug('*** start: logout ***')
+        self.executor.do(self.api.logout, ())
+        self.listener.rootNode = None
+        self.logger.debug('*** done: logout ***')
+
+    def mkdir(self, dirName: str, rootNode: mega.MegaNode):
+        self.logger.debug('*** start: mkdir ***')
+        checkDirNodeExists = self.api.getNodeByPath(dirName, rootNode)
+        if checkDirNodeExists is None:
+            self.logger.debug(f"mkdir '{dirName}' in '{rootNode.getName()}'")
+            self.executor.do(self.api.createFolder, (dirName, rootNode))
+        else:
+            self.logger.debug(f'Path already exists: {self.api.getNodePath(checkDirNodeExists)}')
+        self.logger.debug('*** done: mkdir ***')
+
+    def update(self, fileName: str, rootNode: mega.MegaNode):
+        self.logger.debug('*** start: update ***')
+        self.logger.debug(f"update '{fileName}' in '{rootNode.getName()}'")
+        oldNode = self.api.getNodeByPath(fileName, rootNode)
+        self.executor.do(self.api.startUpload, (fileName, rootNode))
+        if oldNode is not None:
+            self.executor.do(self.api.remove, (oldNode,))
+        else:
+            self.logger.debug('No Old File Needs Removing')
+        self.logger.debug('*** done: update ***')
+
+    def upload(self, fileName: str, rootNode: mega.MegaNode):
+        self.logger.debug('*** start: upload ***')
+        self.logger.debug(f"upload '{fileName}' in '{rootNode.getName()}'")
+        self.executor.do(self.api.startUpload, (fileName, rootNode))
+        self.logger.debug('*** done: upload ***')
+
+    def whoami(self):
+        self.logger.debug('*** start: whoami ***')
+        self.logger.debug(f'My email: {self.api.getMyEmail()}')
+        self.executor.do(self.api.getAccountDetails, ())
+        self.logger.debug('*** done: whoami ***')
+
+
+class MegaApiListener(mega.MegaListener):
+    _NO_EVENT_ON = (mega.MegaRequest.TYPE_LOGIN, mega.MegaRequest.TYPE_FETCH_NODES)
+
+    def __init__(self, apiHelper: MegaApiHelper):
+        self.apiHelper = apiHelper
+        self.logger = self.apiHelper.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
+        self.rootNode = None
+        self.publicNode = None
+        super().__init__()
+
+    def onRequestStart(self, api: mega.MegaApi, request: mega.MegaRequest):
+        self.logger.debug(f'Request start ({request})')
+
+    def onRequestFinish(self, api: mega.MegaApi, request: mega.MegaRequest, error: mega.MegaError):
+        self.logger.debug(f'Request finished ({request}); Result: {error}')
+        requestType = request.getType()
+        if requestType == mega.MegaRequest.TYPE_LOGIN:
+            api.fetchNodes()
+        elif requestType == mega.MegaRequest.TYPE_FETCH_NODES:
+            self.rootNode = api.getRootNode()
+        elif requestType == mega.MegaRequest.TYPE_GET_PUBLIC_NODE:
+            self.publicNode = request.getPublicMegaNode()
+        elif requestType == mega.MegaRequest.TYPE_ACCOUNT_DETAILS:
+            accountDetails = request.getMegaAccountDetails()
+            self.logger.debug('Account details received')
+            self.logger.debug(f'Storage: {accountDetails.getStorageUsed()} of {accountDetails.getStorageMax()} '
+                              f'({(accountDetails.getStorageUsed() / accountDetails.getStorageMax()) * 100} %)')
+            self.logger.debug(f'Pro level: {accountDetails.getProLevel()}')
+        if requestType not in self._NO_EVENT_ON:
+            self.apiHelper.executor.continueEvent.set()
+
+    def onRequestTemporaryError(self, api: mega.MegaApi, request: mega.MegaRequest, error: mega.MegaError):
+        self.logger.debug(f'Request temporary error ({request}); Error: {error}')
+
+    def onTransferFinish(self, api: mega.MegaApi, transfer: mega.MegaTransfer, error: mega.MegaError):
+        self.logger.debug(f'Transfer finished ({transfer} {transfer.getFileName()}); Result: {error}')
+        self.apiHelper.executor.continueEvent.set()
+
+    def onTransferUpdate(self, api: mega.MegaApi, transfer: mega.MegaTransfer):
+        self.logger.debug(f'Transfer update ({transfer} {transfer.getFileName()}); '
+                          f'Progress: {transfer.getTransferredBytes() / 1024} KB of {transfer.getTotalBytes() / 1024} KB, '
+                          f'{transfer.getSpeed() / 1024} KB/s')
+
+    def onTransferTemporaryError(self, api: mega.MegaApi, transfer: mega.MegaTransfer, error: mega.MegaError):
+        self.logger.debug(f'Transfer temporary error ({transfer} {transfer.getFileName()}); Error: {error}')
+
+    def onUsersUpdate(self, api: mega.MegaApi, users: mega.MegaUserList):
+        if users is not None:
+            self.logger.debug(f'Users updated ({users.size()})')
+
+    def onNodesUpdate(self, api: mega.MegaApi, nodes: mega.MegaNodeList):
+        if nodes is not None:
+            self.logger.debug(f'Nodes updated ({nodes.size()})')
+        self.apiHelper.executor.continueEvent.set()
+
+
+class MegaAsyncExecutor:
+    def __init__(self, apiHelper: MegaApiHelper):
+        self.apiHelper = apiHelper
+        self.continueEvent = threading.Event()
+
+    def do(self, function: typing.Callable, args):
+        self.continueEvent.clear()
+        function(*args)
+        self.continueEvent.wait()
+
+
 class MirrorInfo:
     updatableVars: typing.List[str] = ['sizeTotal', 'sizeCurrent', 'speedCurrent', 'timeCurrent',
                                        'isTorrent', 'numSeeders', 'numLeechers']
