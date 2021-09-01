@@ -19,6 +19,7 @@ import json
 import logging
 import loguru
 import magic
+import mega
 import os
 import psutil
 import random
@@ -197,7 +198,9 @@ class BotHelper(BaseHelper):
         self.ariaHelper.globalOptsGet()
         self.ariaHelper.globalOptsSet()
         self.ariaHelper.startListener()
+        self.megaHelper.addListener()
         self.googleDriveHelper.authorizeApi()
+        self.megaHelper.authorizeApi()
         self.addAllHandlers()
         self.updaterStart()
         self.mirrorListenerHelper.startWebhookServer()
@@ -210,6 +213,7 @@ class BotHelper(BaseHelper):
         self.updaterIdle()
 
     def botStop(self) -> None:
+        self.megaHelper.unauthorizeApi()
         self.apiServerStop()
         self.ariaHelper.daemonStop()
         self.delLogFiles()
@@ -1133,9 +1137,11 @@ class MirrorHelper(BaseHelper):
         try:
             mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
             mirrorInfo.tag = msg.from_user.username
-            mirrorInfo.googleDriveDownloadSourceId = self.botHelper.googleDriveHelper.getIdFromUrl(mirrorInfo.downloadUrl)
-            if mirrorInfo.googleDriveDownloadSourceId != '':
+            if re.findall(UrlRegex.googleDrive, mirrorInfo.downloadUrl):
                 mirrorInfo.isGoogleDriveDownload = True
+                mirrorInfo.googleDriveDownloadSourceId = self.botHelper.googleDriveHelper.getIdFromUrl(mirrorInfo.downloadUrl)
+            elif re.findall(UrlRegex.mega, mirrorInfo.downloadUrl):
+                mirrorInfo.isMegaDownload = True
             elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
                 mirrorInfo.isYouTubeDownload = True
             elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
@@ -1499,15 +1505,33 @@ class GoogleDriveHelper(BaseHelper):
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
 
+# TODO: check and set flag if megaAuth is empty
 class MegaHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
+        self.apiHelper = MegaApiHelper(self.botHelper)
 
     def initHelper(self) -> None:
         super().initHelper()
+        self.initSubHelpers()
+
+    def initSubHelpers(self) -> None:
+        self.apiHelper.initHelper()
+
+    def addListener(self) -> None:
+        self.apiHelper.api.addListener(self.apiHelper.listener)
+
+    def authorizeApi(self) -> None:
+        self.apiHelper.login()
+        self.apiHelper.whoami()
+
+    def unauthorizeApi(self) -> None:
+        self.apiHelper.logout()
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
-        raise NotImplementedError
+        self.apiHelper.getNode(mirrorInfo.downloadUrl)
+        self.apiHelper.downloadNode(self.apiHelper.listener.publicNode, mirrorInfo.path)
+        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -2248,6 +2272,7 @@ class UrlRegex:
     generalUrl = r"(?:(?:https?|ftp)://)?[\w/\-?=%.]+\.[\w/\-?=%.]+"
     bittorrentMagnet = r"magnet:\?xt=urn:btih:[a-zA-Z0-9]*"
     googleDrive = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
+    mega = r"((https|http)://)?(www\.)?mega\.nz/[\w\-]+"
     youTube = r"((https|http)://)?((www|m)\.)?(youtube\.com|youtu\.be)/(watch\?v=)?[\w\-]+"
 
 
