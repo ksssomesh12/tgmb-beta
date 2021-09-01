@@ -101,12 +101,6 @@ class BotHelper(BaseHelper):
         self.listenAddress: str = 'localhost'
         self.listenPort: int = 8443
         self.startTime: float = time.time()
-        self.apiServerPid: int = 0
-        self.apiServerStartCmd: typing.List[str] = \
-            ['telegram-bot-api', '--local', '--verbosity=9',
-             f'--api-id={self.configHelper.configVars[self.configHelper.reqVars[2]]}',
-             f'--api-hash={self.configHelper.configVars[self.configHelper.reqVars[3]]}',
-             f'--log={os.path.join(self.envVars["currWorkDir"], self.loggingHelper.logFiles[1])}']
         self.updater = telegram.ext.Updater(token=self.configHelper.configVars[self.configHelper.reqVars[0]],
                                             base_url=f'http://{self.listenAddress}:8081/bot')
         self.dispatcher = self.updater.dispatcher
@@ -131,28 +125,6 @@ class BotHelper(BaseHelper):
         self.decompressionHelper.initHelper()
         self.statusHelper.initHelper()
         self.mirrorListenerHelper.initHelper()
-
-    def apiServerStart(self) -> None:
-        if self.restartVars and self.restartVars['botApiServerPid']:
-            self.apiServerPid = self.restartVars['botApiServerPid']
-            self.logger.info(f'botApiServer Already Running (pid {self.apiServerPid}) !')
-        if not self.apiServerPid:
-            self.apiServerPid = subprocess.Popen(self.apiServerStartCmd).pid
-            self.logger.info(f'botApiServer Started (pid {self.apiServerPid}) !')
-
-    def apiServerCheck(self) -> None:
-        conSuccess = False
-        while not conSuccess:
-            try:
-                self.bot.getMe()
-                conSuccess = True
-            except telegram.error.NetworkError:
-                time.sleep(0.1)
-                continue
-
-    def apiServerStop(self) -> None:
-        os.kill(self.apiServerPid, signal.SIGTERM)
-        self.logger.info(f"botApiServer terminated (pid {self.apiServerPid})")
 
     def checkLogLevel(self):
         if self.configHelper.configVars[self.configHelper.optVars[3]] == self.configHelper.optVals[3]:
@@ -183,7 +155,7 @@ class BotHelper(BaseHelper):
         self.cleanDlRootDir()
         self.logger.info('Restarting the Bot...')
         restartJsonDict = {'restartMsgInfo': self.restartMsgInfo, 'ariaRpcSecret': self.ariaHelper.rpcSecret,
-                           'ariaDaemonPid': self.ariaHelper.daemonPid, 'botApiServerPid': self.apiServerPid}
+                           'ariaDaemonPid': self.ariaHelper.daemonPid, 'botApiServerPid': self.telegramHelper.apiServerPid}
         self.configHelper.jsonFileWrite(self.restartJsonFile, restartJsonDict)
         os.execl(sys.executable, sys.executable, '-m', 'tgmb')
 
@@ -191,9 +163,9 @@ class BotHelper(BaseHelper):
         self.cleanDlRootDir()
         self.delLogFiles()
         self.ariaHelper.daemonStart()
-        self.apiServerStart()
+        self.telegramHelper.apiServerStart()
         self.ariaHelper.daemonCheck()
-        self.apiServerCheck()
+        self.telegramHelper.apiServerCheck()
         self.ariaHelper.dlTrackersList()
         self.ariaHelper.globalOptsGet()
         self.ariaHelper.globalOptsSet()
@@ -214,7 +186,7 @@ class BotHelper(BaseHelper):
 
     def botStop(self) -> None:
         self.megaHelper.unauthorizeApi()
-        self.apiServerStop()
+        self.telegramHelper.apiServerStop()
         self.ariaHelper.daemonStop()
         self.delLogFiles()
         self.mirrorListenerHelper.stopWebhookServer()
@@ -708,7 +680,7 @@ class BotCommandHelper(BaseHelper):
         topMsg = ''
         tgmbProc = psutil.Process(os.getpid())
         ariaDaemonProc = psutil.Process(self.botHelper.ariaHelper.daemonPid)
-        botApiServerProc = psutil.Process(self.botHelper.apiServerPid)
+        botApiServerProc = psutil.Process(self.botHelper.telegramHelper.apiServerPid)
         topMsg += f'{tgmbProc.name()}\n{tgmbProc.cpu_percent()}\n{tgmbProc.memory_percent()}\n'
         topMsg += f'{ariaDaemonProc.name()}\n{ariaDaemonProc.cpu_percent()}\n{ariaDaemonProc.memory_percent()}\n'
         topMsg += f'{botApiServerProc.name()}\n{botApiServerProc.cpu_percent()}\n{botApiServerProc.memory_percent()}\n'
@@ -1546,8 +1518,36 @@ class TelegramHelper(BaseHelper):
 
     def initHelper(self) -> None:
         super().initHelper()
+        self.apiServerPid: int = 0
+        self.apiServerStartCmd: typing.List[str] = \
+            ['telegram-bot-api', '--local', '--verbosity=9',
+             f'--api-id={self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[2]]}',
+             f'--api-hash={self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[3]]}',
+             f'--log={os.path.join(self.botHelper.envVars["currWorkDir"], self.botHelper.loggingHelper.logFiles[1])}']
         self.uploadMaxSize: int = 2 * 1024 * 1024 * 1024
         self.maxTimeout: int = 24 * 60 * 60
+
+    def apiServerStart(self) -> None:
+        if self.botHelper.restartVars and self.botHelper.restartVars['botApiServerPid']:
+            self.apiServerPid = self.botHelper.restartVars['botApiServerPid']
+            self.logger.info(f'botApiServer Already Running (pid {self.apiServerPid}) !')
+        if not self.apiServerPid:
+            self.apiServerPid = subprocess.Popen(self.apiServerStartCmd).pid
+            self.logger.info(f'botApiServer Started (pid {self.apiServerPid}) !')
+
+    def apiServerCheck(self) -> None:
+        conSuccess = False
+        while not conSuccess:
+            try:
+                self.botHelper.bot.getMe()
+                conSuccess = True
+            except telegram.error.NetworkError:
+                time.sleep(0.1)
+                continue
+
+    def apiServerStop(self) -> None:
+        os.kill(self.apiServerPid, signal.SIGTERM)
+        self.logger.info(f"botApiServer terminated (pid {self.apiServerPid})")
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
         replyTo = mirrorInfo.msg.reply_to_message
