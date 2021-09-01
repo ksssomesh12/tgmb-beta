@@ -259,12 +259,12 @@ class ConfigHelper(BaseHelper):
         self.reqVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                                'googleDriveAuth', 'googleDriveUploadFolderIds']
         self.optVars: typing.List[str] = ['ariaGlobalOpts', 'authorizedChats', 'dlRootDir', 'logLevel',
-                                          'statusUpdateInterval', 'trackersListUrl']
+                                          'megaAuth', 'statusUpdateInterval', 'trackersListUrl']
         self.optVals: typing.List[typing.Union[str, typing.Dict]] = \
             [{'allow-overwrite': 'true', 'bt-max-peers': '0', 'follow-torrent': 'mem',
               'max-connection-per-server': '8', 'max-overall-upload-limit': '1K',
               'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'},
-             {}, 'dl', 'INFO', '5', 'https://trackerslist.com/all_aria2.txt']
+             {}, 'dl', 'INFO', {}, '5', 'https://trackerslist.com/all_aria2.txt']
         self.emptyVals: typing.List[typing.Union[str, typing.Dict]] = ['', ' ', {}]
         self.isFixConfigJson: bool = False
         self.configVarsLoad()
@@ -1139,11 +1139,11 @@ class MirrorHelper(BaseHelper):
             elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
                 mirrorInfo.isYouTubeDownload = True
             elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
+                mirrorInfo.isAriaDownload = True
                 mirrorInfo.isMagnet = True
-                mirrorInfo.isAriaDownload = True
             elif re.findall(UrlRegex.generalUrl, mirrorInfo.downloadUrl):
-                mirrorInfo.isUrl = True
                 mirrorInfo.isAriaDownload = True
+                mirrorInfo.isUrl = True
             else:
                 isValidDl = False
         except IndexError:
@@ -1228,7 +1228,7 @@ class AriaHelper(BaseHelper):
         if os.path.exists(self.trackersListFile):
             os.remove(self.trackersListFile)
         self.logger.debug(f"Downloading '{self.trackersListFile}' ...")
-        dlObj = self.api.add_uris(uris=[self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[5]]],
+        dlObj = self.api.add_uris(uris=[self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[6]]],
                                   options={'out': self.trackersListFile})
         while dlObj.status == 'active':
             time.sleep(0.1)
@@ -1676,7 +1676,7 @@ class StatusHelper(BaseHelper):
         self.updaterLock = threading.Lock()
         self.isInitThread: bool = False
         self.isUpdateStatus: bool = False
-        self.statusUpdateInterval: int = int(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]])
+        self.statusUpdateInterval: int = int(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[5]])
         self.msgId: int = 0
         self.chatId: int = 0
         self.lastStatusMsgId: int = 0
