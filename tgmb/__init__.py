@@ -2082,10 +2082,10 @@ class MegaApiListener(mega.MegaListener):
         super().__init__()
 
     def onRequestStart(self, api: mega.MegaApi, request: mega.MegaRequest):
-        self.logger.debug(f'Request start ({request})')
+        self.logger.debug(f'Request Started ({request})')
 
     def onRequestFinish(self, api: mega.MegaApi, request: mega.MegaRequest, error: mega.MegaError):
-        self.logger.debug(f'Request finished ({request}); Result: {error}')
+        self.logger.debug(f'Request Finished ({request}); Result: {error}')
         requestType = request.getType()
         if requestType == mega.MegaRequest.TYPE_LOGIN:
             api.fetchNodes()
@@ -2095,7 +2095,7 @@ class MegaApiListener(mega.MegaListener):
             self.publicNode = request.getPublicMegaNode()
         elif requestType == mega.MegaRequest.TYPE_ACCOUNT_DETAILS:
             accountDetails = request.getMegaAccountDetails()
-            self.logger.debug('Account details received')
+            self.logger.debug('Account Details Received')
             self.logger.debug(f'Storage: {accountDetails.getStorageUsed()} of {accountDetails.getStorageMax()} '
                               f'({(accountDetails.getStorageUsed() / accountDetails.getStorageMax()) * 100} %)')
             self.logger.debug(f'Pro level: {accountDetails.getProLevel()}')
@@ -2103,14 +2103,17 @@ class MegaApiListener(mega.MegaListener):
             self.apiHelper.executor.continueEvent.set()
 
     def onRequestTemporaryError(self, api: mega.MegaApi, request: mega.MegaRequest, error: mega.MegaError):
-        self.logger.debug(f'Request temporary error ({request}); Error: {error}')
+        self.logger.debug(f'Request Temporary Error ({request}); Error: {error}')
 
     def onTransferFinish(self, api: mega.MegaApi, transfer: mega.MegaTransfer, error: mega.MegaError):
-        self.logger.debug(f'Transfer finished ({transfer} {transfer.getFileName()}); Result: {error}')
+        self.logger.debug(f'Transfer Finished ({transfer} {transfer.getFileName()}); Result: {error}')
         self.apiHelper.executor.continueEvent.set()
 
+    def onTransferStart(self, api: mega.MegaApi, transfer: mega.MegaTransfer):
+        self.logger.debug(f'Transfer Started ({transfer} {transfer.getFileName()})')
+
     def onTransferUpdate(self, api: mega.MegaApi, transfer: mega.MegaTransfer):
-        self.logger.debug(f'Transfer update ({transfer} {transfer.getFileName()}); '
+        self.logger.debug(f'Transfer Update ({transfer} {transfer.getFileName()}); '
                           f'Progress: {transfer.getTransferredBytes() / 1024} KB of {transfer.getTotalBytes() / 1024} KB, '
                           f'{transfer.getSpeed() / 1024} KB/s')
 
