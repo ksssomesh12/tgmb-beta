@@ -1482,6 +1482,7 @@ class MegaHelper(BaseHelper):
     # TODO: check and set flag if megaAuth is empty
     def initHelper(self) -> None:
         super().initHelper()
+        self.dlNode: mega.MegaNode
         self.initSubHelpers()
 
     def initSubHelpers(self) -> None:
@@ -1498,8 +1499,11 @@ class MegaHelper(BaseHelper):
         self.apiHelper.logout()
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
-        self.apiHelper.getNode(mirrorInfo.downloadUrl)
-        self.apiHelper.downloadNode(self.apiHelper.listener.publicNode, mirrorInfo.path)
+        if 'folder' in mirrorInfo.downloadUrl:
+            self.dlNode = self.apiHelper.getFolderNode(mirrorInfo.downloadUrl)
+        if 'file' in mirrorInfo.downloadUrl:
+            self.dlNode = self.apiHelper.getFileNode(mirrorInfo.downloadUrl)
+        self.apiHelper.downloadNode(self.dlNode, mirrorInfo.path)
         self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
@@ -2025,15 +2029,24 @@ class MegaApiHelper(BaseHelper):
         self.currWorkDir: mega.MegaNode
         super().initHelper()
 
-    def downloadNode(self, node: mega.MegaNode, dlPath: str):
-        self.logger.debug('*** start: download node ***')
-        self.executor.do(self.api.startDownload, (node, os.path.join(dlPath, node.getName())))
-        self.logger.debug('*** done: download node ***')
+    def downloadNode(self, dlNode: mega.MegaNode, dlPath: str):
+        self.logger.debug('*** start: downloadNode ***')
+        self.executor.do(self.api.startDownload, (dlNode, os.path.join(dlPath, dlNode.getName())))
+        self.logger.debug('*** done: downloadNode ***')
 
-    def getNode(self, nodeLink: str):
-        self.logger.debug('*** start: get node ***')
-        self.executor.do(self.api.getPublicNode, (nodeLink,))
-        self.logger.debug('*** done: get node ***')
+    def getFileNode(self, fileUrl: str) -> mega.MegaNode:
+        self.logger.debug('*** start: getFileNode ***')
+        self.executor.do(self.api.getPublicNode, (fileUrl,))
+        fileNode = self.listener.publicNode
+        self.logger.debug('*** done: getFileNode ***')
+        return fileNode
+
+    def getFolderNode(self, folderUrl: str) -> mega.MegaNode:
+        self.logger.debug('*** start: getFolderNode ***')
+        self.executor.do(self.api.loginToFolder, (folderUrl,))
+        folderNode = self.api.authorizeNode(self.listener.rootNode)
+        self.logger.debug('*** done: getFolderNode ***')
+        return folderNode
 
     def login(self):
         self.logger.debug('*** start: login ***')
