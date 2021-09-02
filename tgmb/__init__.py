@@ -2025,38 +2025,6 @@ class MegaApiHelper(BaseHelper):
         self.currWorkDir: mega.MegaNode
         super().initHelper()
 
-    def cd(self, dirName: str, rootNode: mega.MegaNode):
-        self.logger.debug('*** start: cd ***')
-        dirNode = self.api.getNodeByPath(dirName, rootNode)
-        if dirNode is None:
-            self.logger.warning(f"No Such Directory: '{dirName}'")
-        elif dirNode.getType() == mega.MegaNode.TYPE_FOLDER:
-            self.logger.debug(f"cd '{dirName}' in '{rootNode.getName()}'")
-            self.currWorkDir = dirNode
-        else:
-            self.logger.warning(f"Not a Directory: '{dirName}'")
-        self.logger.debug('*** done: cd ***')
-
-    def delete(self, sourceName: str, rootNode: mega.MegaNode):
-        self.logger.debug('*** start: delete ***')
-        sourceNode = self.api.getNodeByPath(sourceName, rootNode)
-        if sourceNode is not None:
-            self.logger.debug(f"delete '{sourceName}' in '{rootNode.getName()}'")
-            self.executor.do(self.api.remove, (sourceNode,))
-        else:
-            self.logger.warning(f"Node not found: '{sourceName}'")
-        self.logger.debug('*** done: delete ***')
-
-    def download(self, fileName: str, rootNode: mega.MegaNode):
-        self.logger.debug('*** start: download ***')
-        fileNode = self.api.getNodeByPath(fileName, rootNode)
-        if fileNode is not None:
-            self.logger.debug(f"download '{fileName}' in '{rootNode.getName()}'")
-            self.executor.do(self.api.startDownload, (fileNode, fileNode.getName()))
-        else:
-            self.logger.warning(f"Node Not Found: {fileName}")
-        self.logger.debug('*** done: download ***')
-
     def downloadNode(self, node: mega.MegaNode, dlPath: str):
         self.logger.debug('*** start: download node ***')
         self.executor.do(self.api.startDownload, (node, os.path.join(dlPath, node.getName())))
@@ -2080,33 +2048,6 @@ class MegaApiHelper(BaseHelper):
         self.executor.do(self.api.logout, ())
         self.listener.rootNode = None
         self.logger.debug('*** done: logout ***')
-
-    def mkdir(self, dirName: str, rootNode: mega.MegaNode):
-        self.logger.debug('*** start: mkdir ***')
-        checkDirNodeExists = self.api.getNodeByPath(dirName, rootNode)
-        if checkDirNodeExists is None:
-            self.logger.debug(f"mkdir '{dirName}' in '{rootNode.getName()}'")
-            self.executor.do(self.api.createFolder, (dirName, rootNode))
-        else:
-            self.logger.debug(f'Path already exists: {self.api.getNodePath(checkDirNodeExists)}')
-        self.logger.debug('*** done: mkdir ***')
-
-    def update(self, fileName: str, rootNode: mega.MegaNode):
-        self.logger.debug('*** start: update ***')
-        self.logger.debug(f"update '{fileName}' in '{rootNode.getName()}'")
-        oldNode = self.api.getNodeByPath(fileName, rootNode)
-        self.executor.do(self.api.startUpload, (fileName, rootNode))
-        if oldNode is not None:
-            self.executor.do(self.api.remove, (oldNode,))
-        else:
-            self.logger.debug('No Old File Needs Removing')
-        self.logger.debug('*** done: update ***')
-
-    def upload(self, fileName: str, rootNode: mega.MegaNode):
-        self.logger.debug('*** start: upload ***')
-        self.logger.debug(f"upload '{fileName}' in '{rootNode.getName()}'")
-        self.executor.do(self.api.startUpload, (fileName, rootNode))
-        self.logger.debug('*** done: upload ***')
 
     def whoami(self):
         self.logger.debug('*** start: whoami ***')
