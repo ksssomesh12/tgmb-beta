@@ -91,8 +91,6 @@ class BotHelper(BaseHelper):
 
     def initHelper(self) -> None:
         self.envVars: typing.Dict[str, typing.Union[bool, str]] = {'currWorkDir': os.getcwd()}
-        self.logDebugFile = 'log.debug'
-        self.isChangeLogLevel: bool = False
         self.restartJsonFile = 'restart.json'
         self.restartMsgInfo: typing.Dict[str, int] = {}
         self.restartVars = (self.configHelper.jsonFileLoad(self.restartJsonFile) if os.path.exists(self.restartJsonFile) else {})
@@ -106,7 +104,6 @@ class BotHelper(BaseHelper):
         self.dispatcher = self.updater.dispatcher
         self.bot = self.updater.bot
         self.envVars['dlRootDirPath'] = os.path.join(self.envVars['currWorkDir'], self.configHelper.configVars[self.configHelper.optVars[2]])
-        self.checkLogLevel()
 
     def initSubHelpers(self):
         self.loggingHelper.initHelper()
@@ -125,21 +122,6 @@ class BotHelper(BaseHelper):
         self.decompressionHelper.initHelper()
         self.statusHelper.initHelper()
         self.mirrorListenerHelper.initHelper()
-
-    def checkLogLevel(self):
-        if self.configHelper.configVars[self.configHelper.optVars[3]] == self.configHelper.optVals[3]:
-            if os.path.exists(self.logDebugFile):
-                self.isChangeLogLevel = True
-                os.remove(self.logDebugFile)
-        else:
-            if not os.path.exists(self.logDebugFile):
-                self.isChangeLogLevel = True
-                open(self.logDebugFile, 'wt').write('')
-
-    def ifChangeLogLevel(self):
-        if self.isChangeLogLevel:
-            self.logger.info('Changing logLevel...')
-            self.botRestart()
 
     def addAllHandlers(self) -> None:
         for cmdHandler in self.botCmdHelper.cmdHandlers:
@@ -161,7 +143,8 @@ class BotHelper(BaseHelper):
 
     def botStart(self) -> None:
         self.cleanDlRootDir()
-        self.delLogFiles()
+        self.loggingHelper.checkLogLevel()
+        self.loggingHelper.delLogFiles()
         self.ariaHelper.daemonStart()
         self.telegramHelper.apiServerStart()
         self.ariaHelper.daemonCheck()
@@ -181,14 +164,14 @@ class BotHelper(BaseHelper):
     def botIdle(self) -> None:
         self.ifUpdateRestartMsg()
         self.configHelper.ifFixConfigJson()
-        self.ifChangeLogLevel()
+        self.loggingHelper.ifChangeLogLevel()
         self.updaterIdle()
 
     def botStop(self) -> None:
         self.megaHelper.unauthorizeApi()
         self.telegramHelper.apiServerStop()
         self.ariaHelper.daemonStop()
-        self.delLogFiles()
+        self.loggingHelper.delLogFiles()
         self.mirrorListenerHelper.stopWebhookServer()
         self.logger.info("Bot Stopped !")
 
@@ -203,14 +186,6 @@ class BotHelper(BaseHelper):
         if os.path.exists(self.envVars['dlRootDirPath']):
             shutil.rmtree(self.envVars['dlRootDirPath'])
         os.mkdir(self.envVars['dlRootDirPath'])
-
-    # TODO: delLogFiles on botStop(), with restartVars != {}
-    def delLogFiles(self) -> None:
-        if not self.restartVars:
-            for logFile in self.loggingHelper.logFiles[1:]:
-                if os.path.exists(logFile):
-                    os.remove(logFile)
-                    self.logger.debug(f"Deleted: '{logFile}'")
 
     def updaterStart(self):
         self.updater.start_webhook(listen=self.listenAddress, port=self.listenPort, url_path=self.configHelper.configVars[self.configHelper.reqVars[0]],
@@ -483,11 +458,13 @@ class LoggingHelper(BaseHelper):
         super().__init__(botHelper)
 
     def initHelper(self) -> None:
+        self.logDebugFile = 'log.debug'
+        self.isChangeLogLevel: bool = False
         self.logFiles: typing.List[str] = ['bot.log', 'botApiServer.log', 'ariaDaemon.log',
                                            'tqueue.binlog', 'webhooks_db.binlog']
         if os.path.exists(self.logFiles[0]):
             os.remove(self.logFiles[0])
-        self.logLevel = (list(self.LogFormats.keys())[2] if os.path.exists(self.botHelper.logDebugFile) else list(self.LogFormats.keys())[1])
+        self.logLevel = (list(self.LogFormats.keys())[2] if os.path.exists(self.logDebugFile) else list(self.LogFormats.keys())[1])
         self.logDisableModules: typing.List[str] = ['apscheduler', 'telegram.vendor.ptb_urllib3.urllib3.connectionpool']
         self.logger = loguru.logger
         self.logger.remove()
@@ -499,6 +476,29 @@ class LoggingHelper(BaseHelper):
         if self.logLevel == list(self.LogFormats.keys())[1]:
             for logDisableModule in self.logDisableModules:
                 self.logger.disable(logDisableModule)
+
+    def checkLogLevel(self):
+        if self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[3]] == self.botHelper.configHelper.optVals[3]:
+            if os.path.exists(self.logDebugFile):
+                self.isChangeLogLevel = True
+                os.remove(self.logDebugFile)
+        else:
+            if not os.path.exists(self.logDebugFile):
+                self.isChangeLogLevel = True
+                open(self.logDebugFile, 'wt').write('')
+
+    def ifChangeLogLevel(self):
+        if self.isChangeLogLevel:
+            self.logger.info('Changing logLevel...')
+            self.botHelper.botRestart()
+
+    # TODO: delLogFiles on botStop(), with restartVars != {}
+    def delLogFiles(self) -> None:
+        if not self.botHelper.restartVars:
+            for logFile in self.logFiles[1:]:
+                if os.path.exists(logFile):
+                    os.remove(logFile)
+                    self.logger.debug(f"Deleted: '{logFile}'")
 
 
 class ThreadingHelper(BaseHelper):
