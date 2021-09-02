@@ -805,7 +805,9 @@ class ConfigConvHelper(BaseHelper):
     def loadConfigDict(self):
         self.resetAllDat()
         self.configVarsEditable = self.botHelper.configHelper.jsonFileLoad(self.botHelper.configHelper.configJsonFile)
-        for key in [self.botHelper.configHelper.reqVars[4], self.botHelper.configHelper.reqVars[5], self.botHelper.configHelper.optVars[1]]:
+        for key in [self.botHelper.configHelper.reqVars[4], self.botHelper.configHelper.reqVars[5],
+                    self.botHelper.configHelper.optVars[0], self.botHelper.configHelper.optVars[1],
+                    self.botHelper.configHelper.optVars[4]]:
             if key in list(self.configVarsEditable.keys()):
                 self.configVarsEditable.pop(key)
 
