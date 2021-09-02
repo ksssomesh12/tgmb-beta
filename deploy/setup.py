@@ -208,6 +208,7 @@ if __name__ == '__main__':
         if input('Do You Want to Delete the Local Config Files? ') in inputsTruthy:
             for configFile in [*configFiles, dynamicJsonFile, fileidJsonFile]:
                 os.remove(configFile)
+                print(f"Deleted: '{configFile}' !")
     print('Setup Completed !')
     exit(0)
 
