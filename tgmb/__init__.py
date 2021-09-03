@@ -1503,7 +1503,7 @@ class MegaHelper(BaseHelper):
             self.dlNode = self.apiWrapper.getFolderNode(mirrorInfo.downloadUrl)
         if 'file' in mirrorInfo.downloadUrl:
             self.dlNode = self.apiWrapper.getFileNode(mirrorInfo.downloadUrl)
-        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({MirrorInfo.updatableVars[0]: self.apiWrapper.api.getSize(self.dlNode)})
+        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({MirrorInfo.updatableVars[0]: self.apiWrapper.getNodeSize(self.dlNode)})
         self.nodeNames[mirrorInfo.uid] = self.dlNode.getName()
         self.apiWrapper.downloadNode(self.dlNode, mirrorInfo.path)
 
@@ -2054,6 +2054,9 @@ class MegaApiWrapper:
         folderNode = self.api.authorizeNode(self.megaHelper.apiListener.rootNode)
         self.logger.debug('*** done: getFolderNode ***')
         return folderNode
+
+    def getNodeSize(self, node: mega.MegaNode) -> int:
+        return self.api.getSize(node)
 
     def login(self) -> None:
         self.logger.debug('*** start: login ***')
