@@ -1733,14 +1733,14 @@ class StatusHelper(BaseHelper):
         statusMsgTxt = ''
         for uid in self.botHelper.mirrorHelper.mirrorInfos.keys():
             mirrorInfo: MirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[uid]
-            statusMsgTxt += f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
+            statusMsgTxt += f'<code>{mirrorInfo.uid}</code> | {mirrorInfo.status}\n'
             if mirrorInfo.status == MirrorStatus.downloadProgress:
                 if mirrorInfo.isAriaDownload:
                     self.botHelper.ariaHelper.updateProgress(mirrorInfo.uid)
                 statusMsgTxt += f'S: {self.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
                                 f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
                                 f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
-                                f'P: {self.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)} | ' \
+                                f'P: <code>{self.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)}</code> | ' \
                                 f'{mirrorInfo.progressPercent}% | ' \
                                 f'{self.botHelper.getHelper.readableSize(mirrorInfo.speedCurrent)}/s\n' \
                                 f'T: {self.botHelper.getHelper.readableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
