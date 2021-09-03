@@ -1227,11 +1227,11 @@ class AriaHelper(BaseHelper):
     def updateProgress(self, uid: str) -> None:
         if uid in self.gids.keys():
             dlObj = self.getDlObj(self.gids[uid])
-            currVars: typing.Dict[str, typing.Union[int, float, str]] \
-                = {MirrorInfo.updatableVars[0]: dlObj.total_length,
-                   MirrorInfo.updatableVars[1]: dlObj.completed_length,
-                   MirrorInfo.updatableVars[2]: dlObj.download_speed,
-                   MirrorInfo.updatableVars[3]: int(time.time())}
+            currVars: typing.Dict[str, typing.Union[int, float, str]] = \
+                {MirrorInfo.updatableVars[0]: dlObj.total_length,
+                 MirrorInfo.updatableVars[1]: dlObj.completed_length,
+                 MirrorInfo.updatableVars[2]: dlObj.download_speed,
+                 MirrorInfo.updatableVars[3]: int(time.time())}
             if dlObj.is_torrent:
                 currVars[MirrorInfo.updatableVars[4]] = True
                 currVars[MirrorInfo.updatableVars[5]] = dlObj.num_seeders
@@ -1479,34 +1479,33 @@ class GoogleDriveHelper(BaseHelper):
 class MegaHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
-        self.apiHelper = MegaApiHelper(self.botHelper)
 
     # TODO: check and set flag if megaAuth is empty
     def initHelper(self) -> None:
         super().initHelper()
+        self.apiListener = MegaApiListener(self)
+        self.apiWrapper = MegaApiWrapper(self)
+        self.nodeNames: typing.Dict[str, str] = {}
         self.dlNode: mega.MegaNode
-        self.initSubHelpers()
-
-    def initSubHelpers(self) -> None:
-        self.apiHelper.initHelper()
 
     def addListener(self) -> None:
-        self.apiHelper.api.addListener(self.apiHelper.listener)
+        self.apiWrapper.api.addListener(self.apiListener)
 
     def authorizeApi(self) -> None:
-        self.apiHelper.login()
-        self.apiHelper.whoami()
+        self.apiWrapper.login()
+        self.apiWrapper.whoami()
 
     def unauthorizeApi(self) -> None:
-        self.apiHelper.logout()
+        self.apiWrapper.logout()
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
         if 'folder' in mirrorInfo.downloadUrl:
-            self.dlNode = self.apiHelper.getFolderNode(mirrorInfo.downloadUrl)
+            self.dlNode = self.apiWrapper.getFolderNode(mirrorInfo.downloadUrl)
         if 'file' in mirrorInfo.downloadUrl:
-            self.dlNode = self.apiHelper.getFileNode(mirrorInfo.downloadUrl)
-        self.apiHelper.downloadNode(self.dlNode, mirrorInfo.path)
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+            self.dlNode = self.apiWrapper.getFileNode(mirrorInfo.downloadUrl)
+        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({MirrorInfo.updatableVars[0]: self.apiWrapper.api.getSize(self.dlNode)})
+        self.nodeNames[mirrorInfo.uid] = self.dlNode.getName()
+        self.apiWrapper.downloadNode(self.dlNode, mirrorInfo.path)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1516,6 +1515,11 @@ class MegaHelper(BaseHelper):
 
     def cancelUpload(self, uid: str) -> None:
         raise NotImplementedError
+
+    def getUid(self, nodeName: str) -> str:
+        for uid in self.nodeNames.keys():
+            if nodeName == self.nodeNames[uid]:
+                return uid
 
 
 class TelegramHelper(BaseHelper):
@@ -1732,19 +1736,18 @@ class StatusHelper(BaseHelper):
         for uid in self.botHelper.mirrorHelper.mirrorInfos.keys():
             mirrorInfo: MirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[uid]
             statusMsgTxt += f'{mirrorInfo.uid} | {mirrorInfo.status}\n'
-            if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
-                if mirrorInfo.uid in self.botHelper.ariaHelper.gids.keys():
+            if mirrorInfo.status == MirrorStatus.downloadProgress:
+                if mirrorInfo.isAriaDownload:
                     self.botHelper.ariaHelper.updateProgress(mirrorInfo.uid)
-                    statusMsgTxt += f'S: {self.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
-                                    f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
-                                    f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
-                                    f'P: {self.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)} | ' \
-                                    f'{mirrorInfo.progressPercent}% | ' \
-                                    f'{self.botHelper.getHelper.readableSize(mirrorInfo.speedCurrent)}/s\n' \
-                                    f'T: {self.botHelper.getHelper.readableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
-                                    f'{self.botHelper.getHelper.readableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
-                    if mirrorInfo.isTorrent:
-                        statusMsgTxt += f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n'
+                statusMsgTxt += f'S: {self.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
+                                f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
+                                f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal - mirrorInfo.sizeCurrent)}\n' \
+                                f'P: {self.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)} | ' \
+                                f'{mirrorInfo.progressPercent}% | ' \
+                                f'{self.botHelper.getHelper.readableSize(mirrorInfo.speedCurrent)}/s\n' \
+                                f'T: {self.botHelper.getHelper.readableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
+                                f'{self.botHelper.getHelper.readableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
+                statusMsgTxt += (f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n' if mirrorInfo.isTorrent else '')
         return statusMsgTxt
 
     def updateStatusMsg(self) -> None:
@@ -2019,64 +2022,66 @@ class MirrorListenerHelper(BaseHelper):
         self.botHelper.mirrorHelper.mirrorInfos[uid].progressPercent = 0
 
 
-class MegaApiHelper(BaseHelper):
-    def __init__(self, botHelper: BotHelper):
-        super().__init__(botHelper)
-
-    def initHelper(self) -> None:
-        self.api = mega.MegaApi(self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]]['apiKey'], None, None, 'tgmb-beta')
-        self.executor = MegaAsyncExecutor(self)
-        self.listener = MegaApiListener(self)
+class MegaApiWrapper:
+    def __init__(self, megaHelper: MegaHelper):
+        self.megaHelper = megaHelper
+        self.logger = self.megaHelper.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
+        self.api = mega.MegaApi(self.megaHelper.botHelper.configHelper.configVars[self.megaHelper.botHelper.configHelper.optVars[4]]['apiKey'], None, None, 'tgmb-beta')
+        self.AsyncContinueEvent = threading.Event()
         self.cloudDriveNode: mega.MegaNode
         self.currWorkDir: mega.MegaNode
-        super().initHelper()
 
-    def downloadNode(self, dlNode: mega.MegaNode, dlPath: str):
+    def AsyncDo(self, function: typing.Callable, args):
+        self.AsyncContinueEvent.clear()
+        function(*args)
+        self.AsyncContinueEvent.wait()
+
+    def downloadNode(self, dlNode: mega.MegaNode, dlPath: str) -> None:
         self.logger.debug('*** start: downloadNode ***')
-        self.executor.do(self.api.startDownload, (dlNode, os.path.join(dlPath, dlNode.getName())))
+        self.AsyncDo(self.api.startDownload, (dlNode, os.path.join(dlPath, dlNode.getName())))
         self.logger.debug('*** done: downloadNode ***')
 
     def getFileNode(self, fileUrl: str) -> mega.MegaNode:
         self.logger.debug('*** start: getFileNode ***')
-        self.executor.do(self.api.getPublicNode, (fileUrl,))
-        fileNode = self.listener.publicNode
+        self.AsyncDo(self.api.getPublicNode, (fileUrl,))
+        fileNode = self.megaHelper.apiListener.publicNode
         self.logger.debug('*** done: getFileNode ***')
         return fileNode
 
     def getFolderNode(self, folderUrl: str) -> mega.MegaNode:
         self.logger.debug('*** start: getFolderNode ***')
-        self.executor.do(self.api.loginToFolder, (folderUrl,))
-        folderNode = self.api.authorizeNode(self.listener.rootNode)
+        self.AsyncDo(self.api.loginToFolder, (folderUrl,))
+        folderNode = self.api.authorizeNode(self.megaHelper.apiListener.rootNode)
         self.logger.debug('*** done: getFolderNode ***')
         return folderNode
 
-    def login(self):
+    def login(self) -> None:
         self.logger.debug('*** start: login ***')
-        self.executor.do(self.api.login, (self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]]['emailId'],
-                                          self.botHelper.configHelper.configVars[self.botHelper.configHelper.optVars[4]]['passPhrase']))
-        self.cloudDriveNode = self.listener.rootNode
+        self.AsyncDo(self.api.login, (self.megaHelper.botHelper.configHelper.configVars[self.megaHelper.botHelper.configHelper.optVars[4]]['emailId'],
+                                      self.megaHelper.botHelper.configHelper.configVars[self.megaHelper.botHelper.configHelper.optVars[4]]['passPhrase']))
+        self.cloudDriveNode = self.megaHelper.apiListener.rootNode
         self.currWorkDir = self.cloudDriveNode
         self.logger.debug('*** done: login ***')
 
-    def logout(self):
+    def logout(self) -> None:
         self.logger.debug('*** start: logout ***')
-        self.executor.do(self.api.logout, ())
-        self.listener.rootNode = None
+        self.AsyncDo(self.api.logout, ())
+        self.megaHelper.apiListener.rootNode = None
         self.logger.debug('*** done: logout ***')
 
-    def whoami(self):
+    def whoami(self) -> None:
         self.logger.debug('*** start: whoami ***')
         self.logger.debug(f'My email: {self.api.getMyEmail()}')
-        self.executor.do(self.api.getAccountDetails, ())
+        self.AsyncDo(self.api.getAccountDetails, ())
         self.logger.debug('*** done: whoami ***')
 
 
 class MegaApiListener(mega.MegaListener):
     _NO_EVENT_ON = (mega.MegaRequest.TYPE_LOGIN, mega.MegaRequest.TYPE_FETCH_NODES)
 
-    def __init__(self, apiHelper: MegaApiHelper):
-        self.apiHelper = apiHelper
-        self.logger = self.apiHelper.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
+    def __init__(self, megaHelper: MegaHelper):
+        self.megaHelper = megaHelper
+        self.logger = self.megaHelper.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
         self.rootNode = None
         self.publicNode = None
         super().__init__()
@@ -2100,19 +2105,32 @@ class MegaApiListener(mega.MegaListener):
                               f'({(accountDetails.getStorageUsed() / accountDetails.getStorageMax()) * 100} %)')
             self.logger.debug(f'Pro level: {accountDetails.getProLevel()}')
         if requestType not in self._NO_EVENT_ON:
-            self.apiHelper.executor.continueEvent.set()
+            self.megaHelper.apiWrapper.AsyncContinueEvent.set()
 
     def onRequestTemporaryError(self, api: mega.MegaApi, request: mega.MegaRequest, error: mega.MegaError):
         self.logger.debug(f'Request Temporary Error ({request}); Error: {error}')
 
     def onTransferFinish(self, api: mega.MegaApi, transfer: mega.MegaTransfer, error: mega.MegaError):
+        if transfer.getFileName() in self.megaHelper.nodeNames.values():
+            uid = self.megaHelper.getUid(transfer.getFileName())
+            mirrorStatus = (MirrorStatus.downloadComplete if transfer.isFinished() else MirrorStatus.downloadError)
+            self.megaHelper.botHelper.mirrorListenerHelper.updateStatus(uid, mirrorStatus)
+            self.megaHelper.nodeNames.pop(uid)
         self.logger.debug(f'Transfer Finished ({transfer} {transfer.getFileName()}); Result: {error}')
-        self.apiHelper.executor.continueEvent.set()
+        self.megaHelper.apiWrapper.AsyncContinueEvent.set()
 
     def onTransferStart(self, api: mega.MegaApi, transfer: mega.MegaTransfer):
         self.logger.debug(f'Transfer Started ({transfer} {transfer.getFileName()})')
 
     def onTransferUpdate(self, api: mega.MegaApi, transfer: mega.MegaTransfer):
+        if transfer.getFileName() in self.megaHelper.nodeNames.values():
+            uid = self.megaHelper.getUid(transfer.getFileName())
+            currVars: typing.Dict[str, typing.Union[int, float, str]] = \
+                {MirrorInfo.updatableVars[0]: transfer.getTotalBytes(),
+                 MirrorInfo.updatableVars[1]: transfer.getTransferredBytes(),
+                 MirrorInfo.updatableVars[2]: transfer.getSpeed(),
+                 MirrorInfo.updatableVars[3]: int(time.time())}
+            self.megaHelper.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
         self.logger.debug(f'Transfer Update ({transfer} {transfer.getFileName()}); '
                           f'Progress: {transfer.getTransferredBytes() / 1024} KB of {transfer.getTotalBytes() / 1024} KB, '
                           f'{transfer.getSpeed() / 1024} KB/s')
@@ -2127,18 +2145,7 @@ class MegaApiListener(mega.MegaListener):
     def onNodesUpdate(self, api: mega.MegaApi, nodes: mega.MegaNodeList):
         if nodes is not None:
             self.logger.debug(f'Nodes updated ({nodes.size()})')
-        self.apiHelper.executor.continueEvent.set()
-
-
-class MegaAsyncExecutor:
-    def __init__(self, apiHelper: MegaApiHelper):
-        self.apiHelper = apiHelper
-        self.continueEvent = threading.Event()
-
-    def do(self, function: typing.Callable, args):
-        self.continueEvent.clear()
-        function(*args)
-        self.continueEvent.wait()
+        self.megaHelper.apiWrapper.AsyncContinueEvent.set()
 
 
 class MirrorInfo:
