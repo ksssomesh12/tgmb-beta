@@ -2053,9 +2053,6 @@ class MegaApiWrapper:
         self.logger.debug('*** done: getFolderNode ***')
         return folderNode
 
-    def getNodeSize(self, node: mega.MegaNode) -> int:
-        return self.api.getSize(node)
-
     def login(self) -> None:
         self.logger.debug('*** start: login ***')
         self.AsyncDo(self.api.login, (self.megaHelper.botHelper.configHelper.configVars[self.megaHelper.botHelper.configHelper.optVars[4]]['emailId'],
