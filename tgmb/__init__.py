@@ -1485,8 +1485,7 @@ class MegaHelper(BaseHelper):
         super().initHelper()
         self.apiListener = MegaApiListener(self)
         self.apiWrapper = MegaApiWrapper(self)
-        self.nodeNames: typing.Dict[str, str] = {}
-        self.dlNode: mega.MegaNode
+        self.dlNodes: typing.Dict[str, mega.MegaNode] = {}
 
     def addListener(self) -> None:
         self.apiWrapper.api.addListener(self.apiListener)
@@ -1500,12 +1499,11 @@ class MegaHelper(BaseHelper):
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
         if 'folder' in mirrorInfo.downloadUrl:
-            self.dlNode = self.apiWrapper.getFolderNode(mirrorInfo.downloadUrl)
+            self.dlNodes[mirrorInfo.uid] = self.apiWrapper.getFolderNode(mirrorInfo.downloadUrl)
         if 'file' in mirrorInfo.downloadUrl:
-            self.dlNode = self.apiWrapper.getFileNode(mirrorInfo.downloadUrl)
-        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({MirrorInfo.updatableVars[0]: self.apiWrapper.getNodeSize(self.dlNode)})
-        self.nodeNames[mirrorInfo.uid] = self.dlNode.getName()
-        self.apiWrapper.downloadNode(self.dlNode, mirrorInfo.path)
+            self.dlNodes[mirrorInfo.uid] = self.apiWrapper.getFileNode(mirrorInfo.downloadUrl)
+        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({MirrorInfo.updatableVars[0]: self.dlNodes[mirrorInfo.uid].getSize()})
+        self.apiWrapper.downloadNode(self.dlNodes[mirrorInfo.uid], mirrorInfo.path)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1517,8 +1515,8 @@ class MegaHelper(BaseHelper):
         raise NotImplementedError
 
     def getUid(self, nodeName: str) -> str:
-        for uid in self.nodeNames.keys():
-            if nodeName == self.nodeNames[uid]:
+        for uid in self.dlNodes.keys():
+            if nodeName == self.dlNodes[uid].getName():
                 return uid
 
 
@@ -2114,11 +2112,11 @@ class MegaApiListener(mega.MegaListener):
         self.logger.debug(f'Request Temporary Error ({request}); Error: {error}')
 
     def onTransferFinish(self, api: mega.MegaApi, transfer: mega.MegaTransfer, error: mega.MegaError):
-        if transfer.getFileName() in self.megaHelper.nodeNames.values():
+        if transfer.getFileName() in [dlNode.getName() for dlNode in list(self.megaHelper.dlNodes.values())]:
             uid = self.megaHelper.getUid(transfer.getFileName())
             mirrorStatus = (MirrorStatus.downloadComplete if transfer.isFinished() else MirrorStatus.downloadError)
             self.megaHelper.botHelper.mirrorListenerHelper.updateStatus(uid, mirrorStatus)
-            self.megaHelper.nodeNames.pop(uid)
+            self.megaHelper.dlNodes.pop(uid)
         self.logger.debug(f'Transfer Finished ({transfer} {transfer.getFileName()}); Result: {error}')
         self.megaHelper.apiWrapper.AsyncContinueEvent.set()
 
@@ -2126,7 +2124,7 @@ class MegaApiListener(mega.MegaListener):
         self.logger.debug(f'Transfer Started ({transfer} {transfer.getFileName()})')
 
     def onTransferUpdate(self, api: mega.MegaApi, transfer: mega.MegaTransfer):
-        if transfer.getFileName() in self.megaHelper.nodeNames.values():
+        if transfer.getFileName() in [dlNode.getName() for dlNode in list(self.megaHelper.dlNodes.values())]:
             uid = self.megaHelper.getUid(transfer.getFileName())
             currVars: typing.Dict[str, typing.Union[int, float, str]] = \
                 {MirrorInfo.updatableVars[0]: transfer.getTotalBytes(),
