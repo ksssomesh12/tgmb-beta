@@ -2180,14 +2180,14 @@ class MirrorInfo:
         self.uid: str = botHelper.getHelper.randomString(8)
         self.path: str = os.path.join(botHelper.envVars['dlRootDirPath'], self.uid)
         self.status: str = ''
-        self.downloadUrl: str = ''
         self.tag: str = ''
+        self.downloadUrl: str = ''
+        self.sizeTotal: int = 0
+        self.sizeCurrent: int = 0
         self.timeStart: int = 0
         self.timeCurrent: int = 0
         self.timeEnd: int = 0
         self.speedCurrent: int = 0
-        self.sizeTotal: int = 0
-        self.sizeCurrent: int = 0
         self.progressPercent: float = 0.0
         self.isTorrent: bool = False
         self.numSeeders: int = 0
