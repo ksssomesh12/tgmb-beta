@@ -1490,9 +1490,11 @@ class GoogleDriveHelper(BaseHelper):
     def updateProgress(self, sizeUpdate: int, uid: str):
         sizeLast = self.botHelper.mirrorHelper.mirrorInfos[uid].sizeCurrent
         timeLast = self.botHelper.mirrorHelper.mirrorInfos[uid].timeCurrent
-        timeCurrent = int(time.time())
+        speedLast = self.botHelper.mirrorHelper.mirrorInfos[uid].speedCurrent
         sizeCurrent = sizeLast + sizeUpdate
-        speedCurrent = int(sizeUpdate / (timeCurrent - timeLast))
+        timeCurrent = int(time.time())
+        timeDiff = timeCurrent - timeLast
+        speedCurrent = (int(sizeUpdate / timeDiff) if timeDiff else speedLast)
         self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars({MirrorInfo.updatableVars[1]: sizeCurrent,
                                                                  MirrorInfo.updatableVars[2]: speedCurrent,
                                                                  MirrorInfo.updatableVars[3]: timeCurrent})
