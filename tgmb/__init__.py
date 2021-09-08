@@ -389,6 +389,14 @@ class GetHelper(BaseHelper):
             fileChunk = fileStream.read(blockSize)
         return hashSum.hexdigest()
 
+    @staticmethod
+    def folderSize(folderPath: str) -> int:
+        size: int = 0
+        for path, dirs, files in os.walk(folderPath):
+            for file in files:
+                size += os.path.getsize(os.path.join(path, file))
+        return size
+
     def progressBar(self, progress: float) -> str:
         progressRounded = round(progress)
         numFull = progressRounded // 8
@@ -1311,6 +1319,8 @@ class GoogleDriveHelper(BaseHelper):
 
     def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
         if not (mirrorInfo.isGoogleDriveDownload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress)):
+            currVars = {MirrorInfo.updatableVars[0]: self.botHelper.getHelper.folderSize(mirrorInfo.path)}
+            self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars(currVars)
             uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
             if os.path.isdir(uploadPath):
                 folderId = self.uploadFolder(folderPath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
@@ -1318,8 +1328,6 @@ class GoogleDriveHelper(BaseHelper):
             if os.path.isfile(uploadPath):
                 fileId = self.uploadFile(filePath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
-        else:
-            time.sleep(self.botHelper.statusHelper.statusUpdateInterval)
         self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
 
     def cancelUpload(self, uid: str) -> None:
@@ -1480,9 +1488,11 @@ class GoogleDriveHelper(BaseHelper):
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
 
     def updateProgress(self, sizeUpdate: int, uid: str):
+        sizeLast = self.botHelper.mirrorHelper.mirrorInfos[uid].sizeCurrent
+        timeLast = self.botHelper.mirrorHelper.mirrorInfos[uid].timeCurrent
         timeCurrent = int(time.time())
-        sizeCurrent = self.botHelper.mirrorHelper.mirrorInfos[uid].sizeCurrent + sizeUpdate
-        speedCurrent = int(sizeUpdate / (timeCurrent - self.botHelper.mirrorHelper.mirrorInfos[uid].timeCurrent))
+        sizeCurrent = sizeLast + sizeUpdate
+        speedCurrent = int(sizeUpdate / (timeCurrent - timeLast))
         self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars({MirrorInfo.updatableVars[1]: sizeCurrent,
                                                                  MirrorInfo.updatableVars[2]: speedCurrent,
                                                                  MirrorInfo.updatableVars[3]: timeCurrent})
@@ -1582,6 +1592,8 @@ class TelegramHelper(BaseHelper):
         raise NotImplementedError
 
     def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        currVars = {MirrorInfo.updatableVars[0]: self.botHelper.getHelper.folderSize(mirrorInfo.path)}
+        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars(currVars)
         uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
         upResponse: bool = True
         if os.path.isfile(uploadPath):
@@ -2028,8 +2040,7 @@ class MirrorListenerHelper(BaseHelper):
         self.checkUploadQueue()
 
     def resetMirrorProgress(self, uid: str) -> None:
-        self.botHelper.mirrorHelper.mirrorInfos[uid].timeEnd = 0
-        self.botHelper.mirrorHelper.mirrorInfos[uid].progressPercent = 0
+        self.botHelper.mirrorHelper.mirrorInfos[uid].resetVars()
 
 
 class MegaApiWrapper:
@@ -2193,6 +2204,12 @@ class MirrorInfo:
         self.isTelegramUpload: bool = False
         self.isCompress: bool = False
         self.isDecompress: bool = False
+
+    def resetVars(self):
+        self.sizeTotal, self.sizeCurrent = 0, 0
+        self.timeEnd, self.timeCurrent = 0, 0
+        self.speedCurrent = 0
+        self.progressPercent = 0.0
 
     def updateVars(self, currVars: typing.Dict[str, typing.Union[int, float, str]]) -> None:
         currVarsKeys = list(currVars.keys())
