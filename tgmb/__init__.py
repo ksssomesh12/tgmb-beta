@@ -1294,16 +1294,16 @@ class GoogleDriveHelper(BaseHelper):
             isFolder = True
         if mirrorInfo.isGoogleDriveUpload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress):
             if isFolder:
-                folderId = self.cloneFolder(sourceFolderId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                folderId = self.cloneFolder(sourceFolderId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
             else:
-                fileId = self.cloneFile(sourceFileId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                fileId = self.cloneFile(sourceFileId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
         else:
             if isFolder:
-                self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path)
+                self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path, uid=mirrorInfo.uid)
             else:
-                self.downloadFile(sourceFileId=sourceId, dlPath=mirrorInfo.path)
+                self.downloadFile(sourceFileId=sourceId, dlPath=mirrorInfo.path, uid=mirrorInfo.uid)
         self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
@@ -1313,10 +1313,10 @@ class GoogleDriveHelper(BaseHelper):
         if not (mirrorInfo.isGoogleDriveDownload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress)):
             uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
             if os.path.isdir(uploadPath):
-                folderId = self.uploadFolder(folderPath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                folderId = self.uploadFolder(folderPath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
             if os.path.isfile(uploadPath):
-                fileId = self.uploadFile(filePath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId)
+                fileId = self.uploadFile(filePath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
         else:
             time.sleep(self.botHelper.statusHelper.statusUpdateInterval)
@@ -1344,7 +1344,7 @@ class GoogleDriveHelper(BaseHelper):
         self.service = googleapiclient.discovery.build(serviceName='drive', version='v3', credentials=self.oauthCreds,
                                                        cache_discovery=False)
 
-    def uploadFile(self, filePath: str, parentFolderId: str) -> str:
+    def uploadFile(self, filePath: str, parentFolderId: str, uid: str) -> str:
         upStatus: googleapiclient.http.MediaUploadProgress
         fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=True)
         fileMetadata['parents'] = [parentFolderId]
@@ -1352,9 +1352,10 @@ class GoogleDriveHelper(BaseHelper):
         upResponse = None
         while not upResponse:
             upStatus, upResponse = fileOp.next_chunk()
+            self.updateProgress(self.chunkSize, uid)
         return upResponse['id']
 
-    def uploadFolder(self, folderPath: str, parentFolderId: str) -> str:
+    def uploadFolder(self, folderPath: str, parentFolderId: str, uid: str) -> str:
         folderName = folderPath.split('/')[-1]
         folderId = self.createFolder(folderName, parentFolderId)
         folderContents = os.listdir(folderPath)
@@ -1362,28 +1363,30 @@ class GoogleDriveHelper(BaseHelper):
             for contentName in folderContents:
                 contentPath = os.path.join(folderPath, contentName)
                 if os.path.isdir(contentPath):
-                    self.uploadFolder(contentPath, folderId)
+                    self.uploadFolder(folderPath=contentPath, parentFolderId=folderId, uid=uid)
                 if os.path.isfile(contentPath):
-                    self.uploadFile(contentPath, folderId)
+                    self.uploadFile(filePath=contentPath, parentFolderId=folderId, uid=uid)
         return folderId
 
-    def cloneFile(self, sourceFileId: str, parentFolderId: str) -> str:
+    def cloneFile(self, sourceFileId: str, parentFolderId: str, uid: str) -> str:
         fileMetadata = {'parents': [parentFolderId]}
-        return self.service.files().copy(supportsAllDrives=True, fileId=sourceFileId, body=fileMetadata).execute()['id']
+        fileOp = self.service.files().copy(supportsAllDrives=True, fileId=sourceFileId, body=fileMetadata).execute()
+        self.updateProgress(self.getSizeById(sourceFileId), uid)
+        return fileOp['id']
 
-    def cloneFolder(self, sourceFolderId: str, parentFolderId: str) -> str:
+    def cloneFolder(self, sourceFolderId: str, parentFolderId: str, uid: str) -> str:
         sourceFolderName = self.getMetadataById(sourceFolderId, 'name')
         folderId = self.createFolder(sourceFolderName, parentFolderId)
         folderContents = self.getFolderContentsById(sourceFolderId)
         if len(folderContents) != 0:
             for content in folderContents:
                 if content.get('mimeType') == self.googleDriveFolderMimeType:
-                    self.cloneFolder(content.get('id'), folderId)
+                    self.cloneFolder(sourceFolderId=content.get('id'), parentFolderId=folderId, uid=uid)
                 else:
-                    self.cloneFile(content.get('id'), folderId)
+                    self.cloneFile(sourceFileId=content.get('id'), parentFolderId=folderId, uid=uid)
         return folderId
 
-    def downloadFile(self, sourceFileId: str, dlPath: str) -> None:
+    def downloadFile(self, sourceFileId: str, dlPath: str, uid: str) -> None:
         fileName = self.getMetadataById(sourceFileId, 'name')
         filePath = os.path.join(dlPath, fileName)
         downStatus: googleapiclient.http.MediaDownloadProgress
@@ -1393,9 +1396,10 @@ class GoogleDriveHelper(BaseHelper):
         downResponse = None
         while not downResponse:
             downStatus, downResponse = fileOp.next_chunk()
+            self.updateProgress(self.chunkSize, uid)
         return
 
-    def downloadFolder(self, sourceFolderId: str, dlPath: str) -> None:
+    def downloadFolder(self, sourceFolderId: str, dlPath: str, uid: str) -> None:
         folderName = self.getMetadataById(sourceFolderId, 'name')
         folderPath = os.path.join(dlPath, folderName)
         os.mkdir(folderPath)
@@ -1403,9 +1407,9 @@ class GoogleDriveHelper(BaseHelper):
         if len(folderContents) != 0:
             for content in folderContents:
                 if content.get('mimeType') == self.googleDriveFolderMimeType:
-                    self.downloadFolder(content.get('id'), folderPath)
+                    self.downloadFolder(sourceFolderId=content.get('id'), dlPath=folderPath, uid=uid)
                 else:
-                    self.downloadFile(content.get('id'), folderPath)
+                    self.downloadFile(sourceFileId=content.get('id'), dlPath=folderPath, uid=uid)
         return
 
     def createFolder(self, folderName: str, parentFolderId: str) -> str:
@@ -1474,6 +1478,14 @@ class GoogleDriveHelper(BaseHelper):
         fileName, fileMimeType, fileMetadata, mediaBody = self.getUpData(filePath, isResumable=False)
         fileOp = self.service.files().update(fileId=fileId, body=fileMetadata, media_body=mediaBody).execute()
         return f"Patched: [{fileOp['id']}] [{fileName}] [{os.path.getsize(fileName)} bytes]"
+
+    def updateProgress(self, sizeUpdate: int, uid: str):
+        timeCurrent = int(time.time())
+        sizeCurrent = self.botHelper.mirrorHelper.mirrorInfos[uid].sizeCurrent + sizeUpdate
+        speedCurrent = int(sizeUpdate / (timeCurrent - self.botHelper.mirrorHelper.mirrorInfos[uid].timeCurrent))
+        self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars({MirrorInfo.updatableVars[1]: sizeCurrent,
+                                                                 MirrorInfo.updatableVars[2]: speedCurrent,
+                                                                 MirrorInfo.updatableVars[3]: timeCurrent})
 
 
 class MegaHelper(BaseHelper):
@@ -1734,8 +1746,8 @@ class StatusHelper(BaseHelper):
         for uid in self.botHelper.mirrorHelper.mirrorInfos.keys():
             mirrorInfo: MirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[uid]
             statusMsgTxt += f'<code>{mirrorInfo.uid}</code> | {mirrorInfo.status}\n'
-            if mirrorInfo.status == MirrorStatus.downloadProgress:
-                if mirrorInfo.isAriaDownload:
+            if mirrorInfo.status in [MirrorStatus.downloadProgress, MirrorStatus.uploadProgress]:
+                if mirrorInfo.status == MirrorStatus.downloadProgress and mirrorInfo.isAriaDownload:
                     self.botHelper.ariaHelper.updateProgress(mirrorInfo.uid)
                 statusMsgTxt += f'S: {self.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
                                 f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
