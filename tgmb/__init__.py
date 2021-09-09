@@ -547,7 +547,6 @@ class BotCommandHelper(BaseHelper):
     AuthorizeCmd = telegram.BotCommand(command='authorize', description='AuthorizeCommand')
     UnauthorizeCmd = telegram.BotCommand(command='unauthorize', description='UnauthorizeCommand')
     SyncCmd = telegram.BotCommand(command='sync', description='SyncCommand')
-    TopCmd = telegram.BotCommand(command='top', description='TopCommand')
     ConfigCmd = telegram.BotCommand(command='config', description='ConfigCommand')
 
     def __init__(self, botHelper: BotHelper):
@@ -579,13 +578,11 @@ class BotCommandHelper(BaseHelper):
                                                                  callback=self.unauthorizeCallBack, run_async=True)
         self.syncCmdHandler = telegram.ext.CommandHandler(command=self.SyncCmd.command,
                                                           callback=self.syncCallBack, run_async=True)
-        self.topCmdHandler = telegram.ext.CommandHandler(command=self.TopCmd.command,
-                                                         callback=self.topCallBack, run_async=True)
         self.cmdHandlers: typing.List[telegram.ext.CommandHandler] = \
             [self.startCmdHandler, self.helpCmdHandler, self.statsCmdHandler, self.pingCmdHandler,
              self.restartCmdHandler, self.statusCmdHandler, self.cancelCmdHandler, self.listCmdHandler,
              self.deleteCmdHandler, self.authorizeCmdHandler, self.unauthorizeCmdHandler,
-             self.syncCmdHandler, self.topCmdHandler]
+             self.syncCmdHandler]
 
     def startCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         self.botHelper.bot.sendMessage(text=f'A Telegram Bot Written in Python to Mirror Files on the Internet to Google Drive.\n'
@@ -607,7 +604,6 @@ class BotCommandHelper(BaseHelper):
                                             f'/{self.AuthorizeCmd.command} {self.AuthorizeCmd.description}\n'
                                             f'/{self.UnauthorizeCmd.command} {self.UnauthorizeCmd.description}\n'
                                             f'/{self.SyncCmd.command} {self.SyncCmd.description}\n'
-                                            f'/{self.TopCmd.command} {self.TopCmd.description}\n'
                                             f'/{self.ConfigCmd.command} {self.ConfigCmd.description}\n', parse_mode='HTML',
                                        chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
@@ -680,18 +676,6 @@ class BotCommandHelper(BaseHelper):
             self.logger.info(replyMsgTxt)
             self.botHelper.bot.sendMessage(text=replyMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                            reply_to_message_id=update.message.message_id)
-
-    # TODO: format this properly later or else remove from release
-    def topCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
-        topMsg = ''
-        tgmbProc = psutil.Process(os.getpid())
-        ariaDaemonProc = psutil.Process(self.botHelper.ariaHelper.daemonPid)
-        botApiServerProc = psutil.Process(self.botHelper.telegramHelper.apiServerPid)
-        topMsg += f'{tgmbProc.name()}\n{tgmbProc.cpu_percent()}\n{tgmbProc.memory_percent()}\n'
-        topMsg += f'{ariaDaemonProc.name()}\n{ariaDaemonProc.cpu_percent()}\n{ariaDaemonProc.memory_percent()}\n'
-        topMsg += f'{botApiServerProc.name()}\n{botApiServerProc.cpu_percent()}\n{botApiServerProc.memory_percent()}\n'
-        self.botHelper.bot.sendMessage(text=topMsg, parse_mode='HTML', chat_id=update.message.chat_id,
-                                       reply_to_message_id=update.message.message_id)
 
     def unknownCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         if not '@' in update.message.text.split(' ')[0]:
