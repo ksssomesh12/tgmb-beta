@@ -1328,6 +1328,8 @@ class GoogleDriveHelper(BaseHelper):
             if os.path.isfile(uploadPath):
                 fileId = self.uploadFile(filePath=uploadPath, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
+        else:
+            time.sleep(self.botHelper.statusHelper.statusUpdateInterval)
         self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
 
     def cancelUpload(self, uid: str) -> None:
@@ -1347,6 +1349,8 @@ class GoogleDriveHelper(BaseHelper):
                 else:
                     self.logger.info('Google Drive API User Token Needs to Refreshed Manually ! Exiting...')
                     exit(1)
+            else:
+                self.buildService()
 
     def buildService(self) -> None:
         self.service = googleapiclient.discovery.build(serviceName='drive', version='v3', credentials=self.oauthCreds,
