@@ -210,12 +210,12 @@ class ConfigHelper(BaseHelper):
         self.reqVars: [str] = ['botToken', 'botOwnerId', 'telegramApiId', 'telegramApiHash',
                                'googleDriveAuth', 'googleDriveUploadFolderIds']
         self.optVars: typing.List[str] = ['ariaGlobalOpts', 'authorizedChats', 'dlRootDir', 'logLevel',
-                                          'megaAuth', 'statusUpdateInterval', 'trackersListUrl']
+                                          'megaAuth', 'statusUpdateInterval', 'trackersListUrl', 'ytdlFormat']
         self.optVals: typing.List[typing.Union[str, typing.Dict]] = \
             [{'allow-overwrite': 'true', 'bt-max-peers': '0', 'follow-torrent': 'mem',
               'max-connection-per-server': '8', 'max-overall-upload-limit': '1K',
               'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'},
-             {}, 'dl', 'INFO', {}, '5', 'https://trackerslist.com/all_aria2.txt']
+             {}, 'dl', 'INFO', {}, '5', 'https://trackerslist.com/all_aria2.txt', 'best/bestvideo+bestaudio']
         self.emptyVals: typing.List[typing.Union[str, typing.Dict]] = ['', ' ', {}]
         self.isFixConfigJson: bool = False
         self.configVarsLoad()
@@ -1659,7 +1659,7 @@ class YouTubeHelper(BaseHelper):
         super().initHelper()
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
-        ytdlOpts: dict = {'quiet': True, 'format': 'best/bestvideo+bestaudio', 'progress_hooks': [self.progressHook],
+        ytdlOpts: dict = {'quiet': True, 'format': mirrorInfo.ytdlFormat, 'progress_hooks': [self.progressHook],
                           'outtmpl': f'{mirrorInfo.path}/%(title)s-%(id)s.f%(format_id)s.%(ext)s'}
         self.downloadVideo(mirrorInfo.downloadUrl, ytdlOpts)
 
@@ -2201,6 +2201,7 @@ class MirrorInfo:
         self.status: str = ''
         self.tag: str = ''
         self.downloadUrl: str = ''
+        self.ytdlFormat: str = botHelper.configHelper.configVars[botHelper.configHelper.optVars[7]]
         self.sizeTotal: int = 0
         self.sizeCurrent: int = 0
         self.timeStart: float = 0.0

@@ -138,7 +138,8 @@ configTemplateVars: typing.Dict = \
                                                           'max-connection-per-server': '8', 'max-overall-upload-limit': '1K',
                                                           'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'},
      'authorizedChats': {}, 'dlRootDir': 'dl', 'logLevel': 'INFO', 'megaAuth': {'apiKey': '', 'emailId': '', 'passPhrase': ''},
-     'statusUpdateInterval': '5', 'trackersListUrl': 'https://trackerslist.com/all_aria2.txt'}
+     'statusUpdateInterval': '5', 'trackersListUrl': 'https://trackerslist.com/all_aria2.txt',
+     'ytdlFormat': 'best/bestvideo+bestaudio'}
 envVars: typing.Dict = {'dlWaitTime': '5'}
 
 if __name__ == '__main__':
