@@ -1,7 +1,5 @@
 # TODO: add sufficient documentation to the functions and classes in this module
-# TODO: Code for Download from Mega
 # TODO: Code for Upload to Mega
-# TODO: Helper functions - bot_utils.py, fs_utils.py, message_utils.py
 # TODO: Code for user filters
 # TODO: Add and Handle Exceptions
 # TODO: Code for direct link generation
@@ -1042,7 +1040,7 @@ class MirrorConvHelper(BaseHelper):
             query.edit_message_text(text='addMirror Cancelled !')
         return telegram.ext.ConversationHandler.END
 
-    # TODO: reduce this function code if possible
+    # TODO: reduce this method code if possible
     def getMirrorInfoStr(self):
         mirrorInfoStr = f'[uid | {self.mirrorInfo.uid}]\n'
         if self.mirrorInfo.isAriaDownload:
