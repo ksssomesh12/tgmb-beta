@@ -1675,9 +1675,9 @@ class YouTubeHelper(BaseHelper):
         uid = progressUpdate['filename'].replace(self.botHelper.envVars['dlRootDirPath'], '').split('/')[1]
         if progressUpdate['status'] == 'downloading':
             currVars: typing.Dict[str, typing.Union[int, float, str]] = \
-                {MirrorInfo.updatableVars[0]: int(progressUpdate['total_bytes']),
-                 MirrorInfo.updatableVars[1]: int(progressUpdate['downloaded_bytes']),
-                 MirrorInfo.updatableVars[2]: int(progressUpdate['speed']),
+                {MirrorInfo.updatableVars[0]: int((sizeTotal if (sizeTotal := progressUpdate['total_bytes']) else 0)),
+                 MirrorInfo.updatableVars[1]: int((sizeCurrent if (sizeCurrent := progressUpdate['downloaded_bytes']) else 0)),
+                 MirrorInfo.updatableVars[2]: int((speedCurrent if (speedCurrent := progressUpdate['speed']) else 0)),
                  MirrorInfo.updatableVars[3]: time.time()}
             self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
         if progressUpdate['status'] == 'finished':
