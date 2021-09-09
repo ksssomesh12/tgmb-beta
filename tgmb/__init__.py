@@ -1083,7 +1083,7 @@ class MirrorHelper(BaseHelper):
     def addMirror(self, mirrorInfo: 'MirrorInfo') -> None:
         self.logger.debug(vars(mirrorInfo))
         self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
-        self.mirrorInfos[mirrorInfo.uid].timeStart = int(time.time())
+        self.mirrorInfos[mirrorInfo.uid].timeStart = time.time()
         self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
         self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
                                                   chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
@@ -1239,7 +1239,7 @@ class AriaHelper(BaseHelper):
                 {MirrorInfo.updatableVars[0]: dlObj.total_length,
                  MirrorInfo.updatableVars[1]: dlObj.completed_length,
                  MirrorInfo.updatableVars[2]: dlObj.download_speed,
-                 MirrorInfo.updatableVars[3]: int(time.time())}
+                 MirrorInfo.updatableVars[3]: time.time()}
             if dlObj.is_torrent:
                 currVars[MirrorInfo.updatableVars[4]] = True
                 currVars[MirrorInfo.updatableVars[5]] = dlObj.num_seeders
@@ -1492,7 +1492,7 @@ class GoogleDriveHelper(BaseHelper):
         timeLast = self.botHelper.mirrorHelper.mirrorInfos[uid].timeCurrent
         speedLast = self.botHelper.mirrorHelper.mirrorInfos[uid].speedCurrent
         sizeCurrent = sizeLast + sizeUpdate
-        timeCurrent = int(time.time())
+        timeCurrent = time.time()
         timeDiff = timeCurrent - timeLast
         speedCurrent = (int(sizeUpdate / timeDiff) if timeDiff else speedLast)
         self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars({MirrorInfo.updatableVars[1]: sizeCurrent,
@@ -1769,8 +1769,8 @@ class StatusHelper(BaseHelper):
                                 f'P: <code>{self.botHelper.getHelper.progressBar(mirrorInfo.progressPercent)}</code> | ' \
                                 f'{mirrorInfo.progressPercent}% | ' \
                                 f'{self.botHelper.getHelper.readableSize(mirrorInfo.speedCurrent)}/s\n' \
-                                f'T: {self.botHelper.getHelper.readableTime(mirrorInfo.timeCurrent - mirrorInfo.timeStart)} | ' \
-                                f'{self.botHelper.getHelper.readableTime(mirrorInfo.timeEnd - mirrorInfo.timeCurrent)}\n'
+                                f'T: {self.botHelper.getHelper.readableTime(int(mirrorInfo.timeCurrent - mirrorInfo.timeStart))} | ' \
+                                f'{self.botHelper.getHelper.readableTime(int(mirrorInfo.timeEnd - mirrorInfo.timeCurrent))}\n'
                 statusMsgTxt += (f'nS: {mirrorInfo.numSeeders} nL: {mirrorInfo.numLeechers}\n' if mirrorInfo.isTorrent else '')
         return statusMsgTxt
 
@@ -2152,7 +2152,7 @@ class MegaApiListener(mega.MegaListener):
                 {MirrorInfo.updatableVars[0]: transfer.getTotalBytes(),
                  MirrorInfo.updatableVars[1]: transfer.getTransferredBytes(),
                  MirrorInfo.updatableVars[2]: transfer.getSpeed(),
-                 MirrorInfo.updatableVars[3]: int(time.time())}
+                 MirrorInfo.updatableVars[3]: time.time()}
             self.megaHelper.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
         self.logger.debug(f'Transfer Update ({transfer} {transfer.getFileName()}); '
                           f'Progress: {transfer.getTransferredBytes() / 1024} KB of {transfer.getTotalBytes() / 1024} KB, '
@@ -2186,9 +2186,9 @@ class MirrorInfo:
         self.downloadUrl: str = ''
         self.sizeTotal: int = 0
         self.sizeCurrent: int = 0
-        self.timeStart: int = 0
-        self.timeCurrent: int = 0
-        self.timeEnd: int = 0
+        self.timeStart: float = 0.0
+        self.timeCurrent: float = 0.0
+        self.timeEnd: float = 0.0
         self.speedCurrent: int = 0
         self.progressPercent: float = 0.0
         self.isTorrent: bool = False
@@ -2209,7 +2209,7 @@ class MirrorInfo:
 
     def resetVars(self):
         self.sizeTotal, self.sizeCurrent = 0, 0
-        self.timeEnd, self.timeCurrent = 0, 0
+        self.timeEnd, self.timeCurrent = 0.0, 0.0
         self.speedCurrent = 0
         self.progressPercent = 0.0
 
@@ -2224,7 +2224,7 @@ class MirrorInfo:
             if self.sizeTotal != 0:
                 self.progressPercent = round(((self.sizeCurrent / self.sizeTotal) * 100), ndigits=2)
             if self.speedCurrent != 0:
-                self.timeEnd = self.timeCurrent + int((self.sizeTotal - self.sizeCurrent) / self.speedCurrent)
+                self.timeEnd = self.timeCurrent + ((self.sizeTotal - self.sizeCurrent) / self.speedCurrent)
         if self.updatableVars[4] in currVarsKeys:
             self.isTorrent = True
             self.numSeeders = currVars[self.updatableVars[5]]
