@@ -1659,10 +1659,9 @@ class YouTubeHelper(BaseHelper):
         super().initHelper()
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
-        ytdlOpts: dict = {'format': 'best/bestvideo+bestaudio', 'logger': self.logger,
+        ytdlOpts: dict = {'quiet': True, 'format': 'best/bestvideo+bestaudio', 'progress_hooks': [self.progressHook],
                           'outtmpl': f'{mirrorInfo.path}/%(title)s-%(id)s.f%(format_id)s.%(ext)s'}
         self.downloadVideo(mirrorInfo.downloadUrl, ytdlOpts)
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1671,6 +1670,18 @@ class YouTubeHelper(BaseHelper):
     def downloadVideo(videoUrl: str, ytdlOpts: dict) -> None:
         with youtube_dl.YoutubeDL(ytdlOpts) as ytdl:
             ytdl.download([videoUrl])
+
+    def progressHook(self, progressUpdate: dict):
+        uid = progressUpdate['filename'].replace(self.botHelper.envVars['dlRootDirPath'], '').split('/')[1]
+        if progressUpdate['status'] == 'downloading':
+            currVars: typing.Dict[str, typing.Union[int, float, str]] = \
+                {MirrorInfo.updatableVars[0]: int(progressUpdate['total_bytes']),
+                 MirrorInfo.updatableVars[1]: int(progressUpdate['downloaded_bytes']),
+                 MirrorInfo.updatableVars[2]: int(progressUpdate['speed']),
+                 MirrorInfo.updatableVars[3]: time.time()}
+            self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
+        if progressUpdate['status'] == 'finished':
+            self.botHelper.mirrorListenerHelper.updateStatus(uid, MirrorStatus.downloadComplete)
 
 
 class CompressionHelper(BaseHelper):
