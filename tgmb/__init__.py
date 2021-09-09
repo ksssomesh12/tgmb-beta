@@ -1360,7 +1360,8 @@ class GoogleDriveHelper(BaseHelper):
         upResponse = None
         while not upResponse:
             upStatus, upResponse = fileOp.next_chunk()
-            self.updateProgress(self.chunkSize, uid)
+            sizeUpdate = (self.chunkSize if not upResponse else (os.path.getsize(filePath) % self.chunkSize))
+            self.updateProgress(sizeUpdate, uid)
         return upResponse['id']
 
     def uploadFolder(self, folderPath: str, parentFolderId: str, uid: str) -> str:
@@ -1404,7 +1405,8 @@ class GoogleDriveHelper(BaseHelper):
         downResponse = None
         while not downResponse:
             downStatus, downResponse = fileOp.next_chunk()
-            self.updateProgress(self.chunkSize, uid)
+            sizeUpdate = (self.chunkSize if not downResponse else (self.getSizeById(sourceFileId) % self.chunkSize))
+            self.updateProgress(sizeUpdate, uid)
         return
 
     def downloadFolder(self, sourceFolderId: str, dlPath: str, uid: str) -> None:
