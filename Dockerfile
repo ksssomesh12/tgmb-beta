@@ -12,7 +12,7 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 RUN git clone --recursive https://github.com/tdlib/telegram-bot-api.git && cd telegram-bot-api && \
-    git checkout 81f2983 && mkdir build && cd build && \
+    git checkout 36b0c44 && mkdir build && cd build && \
     CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-10 CXX=/usr/bin/clang++-10 \
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. .. && \
     cmake --build . --target install -- -j $(nproc) && cd .. && \

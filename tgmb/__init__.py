@@ -547,7 +547,6 @@ class BotCommandHelper(BaseHelper):
     AuthorizeCmd = telegram.BotCommand(command='authorize', description='AuthorizeCommand')
     UnauthorizeCmd = telegram.BotCommand(command='unauthorize', description='UnauthorizeCommand')
     SyncCmd = telegram.BotCommand(command='sync', description='SyncCommand')
-    TopCmd = telegram.BotCommand(command='top', description='TopCommand')
     ConfigCmd = telegram.BotCommand(command='config', description='ConfigCommand')
 
     def __init__(self, botHelper: BotHelper):
@@ -579,13 +578,11 @@ class BotCommandHelper(BaseHelper):
                                                                  callback=self.unauthorizeCallBack, run_async=True)
         self.syncCmdHandler = telegram.ext.CommandHandler(command=self.SyncCmd.command,
                                                           callback=self.syncCallBack, run_async=True)
-        self.topCmdHandler = telegram.ext.CommandHandler(command=self.TopCmd.command,
-                                                         callback=self.topCallBack, run_async=True)
         self.cmdHandlers: typing.List[telegram.ext.CommandHandler] = \
             [self.startCmdHandler, self.helpCmdHandler, self.statsCmdHandler, self.pingCmdHandler,
              self.restartCmdHandler, self.statusCmdHandler, self.cancelCmdHandler, self.listCmdHandler,
              self.deleteCmdHandler, self.authorizeCmdHandler, self.unauthorizeCmdHandler,
-             self.syncCmdHandler, self.topCmdHandler]
+             self.syncCmdHandler]
 
     def startCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         self.botHelper.bot.sendMessage(text=f'A Telegram Bot Written in Python to Mirror Files on the Internet to Google Drive.\n'
@@ -607,7 +604,6 @@ class BotCommandHelper(BaseHelper):
                                             f'/{self.AuthorizeCmd.command} {self.AuthorizeCmd.description}\n'
                                             f'/{self.UnauthorizeCmd.command} {self.UnauthorizeCmd.description}\n'
                                             f'/{self.SyncCmd.command} {self.SyncCmd.description}\n'
-                                            f'/{self.TopCmd.command} {self.TopCmd.description}\n'
                                             f'/{self.ConfigCmd.command} {self.ConfigCmd.description}\n', parse_mode='HTML',
                                        chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
@@ -680,18 +676,6 @@ class BotCommandHelper(BaseHelper):
             self.logger.info(replyMsgTxt)
             self.botHelper.bot.sendMessage(text=replyMsgTxt, parse_mode='HTML', chat_id=update.message.chat_id,
                                            reply_to_message_id=update.message.message_id)
-
-    # TODO: format this properly later or else remove from release
-    def topCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
-        topMsg = ''
-        tgmbProc = psutil.Process(os.getpid())
-        ariaDaemonProc = psutil.Process(self.botHelper.ariaHelper.daemonPid)
-        botApiServerProc = psutil.Process(self.botHelper.telegramHelper.apiServerPid)
-        topMsg += f'{tgmbProc.name()}\n{tgmbProc.cpu_percent()}\n{tgmbProc.memory_percent()}\n'
-        topMsg += f'{ariaDaemonProc.name()}\n{ariaDaemonProc.cpu_percent()}\n{ariaDaemonProc.memory_percent()}\n'
-        topMsg += f'{botApiServerProc.name()}\n{botApiServerProc.cpu_percent()}\n{botApiServerProc.memory_percent()}\n'
-        self.botHelper.bot.sendMessage(text=topMsg, parse_mode='HTML', chat_id=update.message.chat_id,
-                                       reply_to_message_id=update.message.message_id)
 
     def unknownCallBack(self, update: telegram.Update, _: telegram.ext.CallbackContext):
         if not '@' in update.message.text.split(' ')[0]:
@@ -969,7 +953,7 @@ class MirrorConvHelper(BaseHelper):
             # <setDefaults>
             self.mirrorInfo.isGoogleDriveUpload = True
             self.mirrorInfo.googleDriveUploadFolderId = \
-            list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].keys())[0]
+                list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].keys())[0]
             # </setDefaults>
             update.message.reply_text(text=self.getMirrorInfoStr(), reply_to_message_id=update.message.message_id,
                                       reply_markup=InlineKeyboardMaker(['Use Defaults', 'Customize']).build(1))
@@ -1013,7 +997,7 @@ class MirrorConvHelper(BaseHelper):
         query = update.callback_query
         query.answer()
         self.mirrorInfo.googleDriveUploadFolderId = \
-        list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].keys())[(int(query.data) - 1)]
+            list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].keys())[(int(query.data) - 1)]
         buttonList = ['isCompress', 'isDecompress', 'Skip']
         query.edit_message_text(text='Choose:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
         return self.FOURTH
@@ -1606,7 +1590,7 @@ class TelegramHelper(BaseHelper):
             if not self.uploadFile(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
                 self.botHelper.bot.sendMessage(text='Files Larger Than 2GB Cannot Be Uploaded Yet !', parse_mode='HTML',
-                                                            chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
+                                               chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
         if os.path.isdir(uploadPath):
             if not self.uploadFolder(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
@@ -1808,7 +1792,7 @@ class StatusHelper(BaseHelper):
                     return
             if not self.isUpdateStatus:
                 self.botHelper.bot.editMessageText(text='No Active Downloads !', parse_mode='HTML',
-                                                                chat_id=self.chatId, message_id=self.lastStatusMsgId)
+                                                   chat_id=self.chatId, message_id=self.lastStatusMsgId)
                 self.resetAllDat()
 
     def resetAllDat(self) -> None:
@@ -1900,7 +1884,7 @@ class MirrorListenerHelper(BaseHelper):
         self.botHelper.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
         if mirrorInfo.isGoogleDriveUpload or mirrorInfo.isMegaUpload:
             self.botHelper.bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
-                                                                  parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
+                                           parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
 
     def onDownloadQueue(self, mirrorInfo: 'MirrorInfo') -> None:
         self.resetMirrorProgress(mirrorInfo.uid)
