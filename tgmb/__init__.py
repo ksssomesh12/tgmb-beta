@@ -213,7 +213,7 @@ class ConfigHelper(BaseHelper):
             [{'allow-overwrite': 'true', 'bt-max-peers': '0', 'follow-torrent': 'mem',
               'max-connection-per-server': '8', 'max-overall-upload-limit': '1K',
               'min-split-size': '10M', 'seed-time': '0.01', 'split': '10'},
-             {}, 'dl', 'INFO', {}, '5', 'https://trackerslist.com/all_aria2.txt', 'best/bestvideo+bestaudio']
+             {}, 'dl', 'INFO', {}, '5', 'https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/all_aria2.txt', 'best/bestvideo+bestaudio']
         self.emptyVals: typing.List[typing.Union[str, typing.Dict]] = ['', ' ', {}]
         self.isFixConfigJson: bool = False
         self.configVarsLoad()
