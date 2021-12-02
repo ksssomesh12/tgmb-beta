@@ -26,9 +26,8 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y libsqlite3-dev libssl-dev swig zlib1g-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 WORKDIR /root
-ENV MEGA_SDK_VERSION='3.9.2'
 RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
-    git checkout v$MEGA_SDK_VERSION && \
+    git checkout v3.9.10 && \
     ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel
 
