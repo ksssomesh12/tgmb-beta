@@ -16,7 +16,7 @@ RUN git clone --recursive https://github.com/tdlib/telegram-bot-api.git && cd te
     CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-10 CXX=/usr/bin/clang++-10 \
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. .. && \
     cmake --build . --target install -- -j $(nproc) && cd .. && \
-    ls -l bin/telegram-bot-api*
+    ls -lh bin/telegram-bot-api*
 
 FROM ubuntu:latest as mega
 ENV DEBIAN_FRONTEND='noninteractive'
@@ -26,11 +26,11 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y libsqlite3-dev libssl-dev swig zlib1g-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 WORKDIR /root
-ENV MEGA_SDK_VERSION='3.9.2'
 RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
-    git checkout v$MEGA_SDK_VERSION && \
+    git checkout v3.9.10 && \
     ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
-    make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel
+    make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
+    ls -lh dist/megasdk*
 
 FROM ghcr.io/ksssomesh12/tgmb-beta:base as app-base
 FROM ghcr.io/ksssomesh12/tgmb-beta:api as app-api
