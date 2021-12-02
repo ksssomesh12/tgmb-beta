@@ -29,7 +29,8 @@ WORKDIR /root
 RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
     git checkout v3.9.10 && \
     ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
-    make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel
+    make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
+    ls -l dist/megasdk*
 
 FROM ghcr.io/ksssomesh12/tgmb-beta:base as app-base
 FROM ghcr.io/ksssomesh12/tgmb-beta:api as app-api
