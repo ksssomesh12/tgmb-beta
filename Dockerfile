@@ -44,6 +44,11 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y libcrypto++-dev libfreeimage-dev && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:qbittorrent-team/qbittorrent-stable && \
+    apt-get install -y qbittorrent-nox && \
+    apt-get purge -y software-properties-common && \
+    apt-get autoremove -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN pip3 install --no-cache-dir /root/mega-sdk/bindings/python/dist/megasdk-*.whl
 WORKDIR /usr/src/app
