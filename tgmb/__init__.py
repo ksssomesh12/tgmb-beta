@@ -76,8 +76,8 @@ class BotHelper(BaseHelper):
         self.mirrorHelper = MirrorHelper(self)
         self.statusHelper = StatusHelper(self)
         self.threadingHelper = ThreadingHelper(self)
-        self.botCmdHelper = BotCommandHelper(self)
-        self.botConvHelper = BotConversationHelper(self)
+        self.commandHelper = CommandHelper(self)
+        self.conversationHelper = ConversationHelper(self)
         self.ariaHelper = AriaHelper(self)
         self.googleDriveHelper = GoogleDriveHelper(self)
         self.megaHelper = MegaHelper(self)
@@ -109,8 +109,8 @@ class BotHelper(BaseHelper):
         self.threadingHelper.initHelper()
         self.configHelper.initHelper()
         self.mirrorHelper.initHelper()
-        self.botCmdHelper.initHelper()
-        self.botConvHelper.initHelper()
+        self.commandHelper.initHelper()
+        self.conversationHelper.initHelper()
         self.ariaHelper.initHelper()
         self.googleDriveHelper.initHelper()
         self.megaHelper.initHelper()
@@ -122,12 +122,12 @@ class BotHelper(BaseHelper):
         self.listenerHelper.initHelper()
 
     def addAllHandlers(self) -> None:
-        for cmdHandler in self.botCmdHelper.cmdHandlers:
+        for cmdHandler in self.commandHelper.cmdHandlers:
             self.dispatcher.add_handler(cmdHandler)
-        for convHandler in self.botConvHelper.convHandlers:
+        for convHandler in self.conversationHelper.convHandlers:
             self.dispatcher.add_handler(convHandler)
         unknownHandler = telegram.ext.MessageHandler(filters=telegram.ext.Filters.command,
-                                                     callback=self.botCmdHelper.unknownCallBack, run_async=True)
+                                                     callback=self.commandHelper.unknownCallBack, run_async=True)
         self.dispatcher.add_handler(unknownHandler)
 
     def botRestart(self) -> None:
@@ -855,7 +855,7 @@ class ThreadingHelper(BaseHelper):
         self.logger.debug(f'Thread Ended: {currentThread.name} [runningThreads - {len(self.runningThreads)}]')
 
 
-class BotCommandHelper(BaseHelper):
+class CommandHelper(BaseHelper):
     StartCmd = telegram.BotCommand(command='start', description='StartCommand')
     HelpCmd = telegram.BotCommand(command='help', description='HelpCommand')
     StatsCmd = telegram.BotCommand(command='stats', description='StatsCommand')
@@ -1006,7 +1006,7 @@ class BotCommandHelper(BaseHelper):
                                            chat_id=update.message.chat_id, reply_to_message_id=update.message.message_id)
 
 
-class BotConversationHelper(BaseHelper):
+class ConversationHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
         self.configConvHelper = ConfigConvHelper(self.botHelper)
@@ -1039,7 +1039,7 @@ class ConfigConvHelper(BaseHelper):
         self.newValMsg: telegram.Message
         self.FIRST, self.SECOND, self.THIRD, self.FOURTH, self.FIFTH, self.SIXTH = range(6)
         # TODO: filter - add owner_filter
-        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.botCmdHelper.ConfigCmd.command, self.stageZero)
+        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.commandHelper.ConfigCmd.command, self.stageZero)
         self.handler = telegram.ext.ConversationHandler(entry_points=[self.cmdHandler], fallbacks=[self.cmdHandler],
                                                         states={
                                                             # ZEROTH
@@ -1180,7 +1180,7 @@ class ConfigConvHelper(BaseHelper):
             self.botHelper.configHelper.configVars[configVarKey] = self.configVarsNew[configVarKey]
         self.botHelper.configHelper.updateConfigJson()
         self.logger.info(f"Owner '{query.from_user.first_name}' Saved Changes Made to '{self.botHelper.configHelper.configJsonFile}' !")
-        query.edit_message_text(text=f"Saved Changes.\nPlease /{self.botHelper.botCmdHelper.RestartCmd.command} to Load Changes.")
+        query.edit_message_text(text=f"Saved Changes.\nPlease /{self.botHelper.commandHelper.RestartCmd.command} to Load Changes.")
         return telegram.ext.ConversationHandler.END
 
     def convEnd(self, query: telegram.CallbackQuery) -> int:
@@ -1208,7 +1208,7 @@ class LogConvHelper(BaseHelper):
         self.docSendTimeout: int = 600
         self.FIRST = range(1)[0]
         # TODO: filter - restrict to user who sent LogCommand
-        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.botCmdHelper.LogCmd.command, self.stageZero)
+        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.commandHelper.LogCmd.command, self.stageZero)
         self.handler = telegram.ext.ConversationHandler(entry_points=[self.cmdHandler], fallbacks=[self.cmdHandler],
                                                         states={self.FIRST: [telegram.ext.CallbackQueryHandler(self.stageOne)]},
                                                         conversation_timeout=120, run_async=True)
@@ -1253,7 +1253,7 @@ class MirrorConvHelper(BaseHelper):
         self.mirrorInfo: MirrorInfo
         self.FIRST, self.SECOND, self.THIRD, self.FOURTH, self.FIFTH = range(5)
         # TODO: filter - restrict to user who sent MirrorCommand
-        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.botCmdHelper.MirrorCmd.command, self.stageZero)
+        self.cmdHandler = telegram.ext.CommandHandler(self.botHelper.commandHelper.MirrorCmd.command, self.stageZero)
         self.handler = telegram.ext.ConversationHandler(entry_points=[self.cmdHandler], fallbacks=[self.cmdHandler],
                                                         states={
                                                             # ZEROTH
