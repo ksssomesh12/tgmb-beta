@@ -84,7 +84,7 @@ class BotHelper(BaseHelper):
         self.compressionHelper = CompressionHelper(self)
         self.decompressionHelper = DecompressionHelper(self)
         self.statusHelper = StatusHelper(self)
-        self.mirrorListenerHelper = MirrorListenerHelper(self)
+        self.listenerHelper = ListenerHelper(self)
         super().__init__(self)
 
     def initHelper(self) -> None:
@@ -119,7 +119,7 @@ class BotHelper(BaseHelper):
         self.compressionHelper.initHelper()
         self.decompressionHelper.initHelper()
         self.statusHelper.initHelper()
-        self.mirrorListenerHelper.initHelper()
+        self.listenerHelper.initHelper()
 
     def addAllHandlers(self) -> None:
         for cmdHandler in self.botCmdHelper.cmdHandlers:
@@ -156,7 +156,7 @@ class BotHelper(BaseHelper):
         self.megaHelper.authorizeApi()
         self.addAllHandlers()
         self.updaterStart()
-        self.mirrorListenerHelper.startWebhookServer()
+        self.listenerHelper.startWebhookServer()
         self.logger.info("Bot Started !")
 
     def botIdle(self) -> None:
@@ -170,7 +170,7 @@ class BotHelper(BaseHelper):
         self.telegramHelper.apiServerStop()
         self.ariaHelper.daemonStop()
         self.loggingHelper.delLogFiles()
-        self.mirrorListenerHelper.stopWebhookServer()
+        self.listenerHelper.stopWebhookServer()
         self.logger.info("Bot Stopped !")
 
     def ifUpdateRestartMsg(self) -> None:
@@ -1066,7 +1066,7 @@ class MirrorHelper(BaseHelper):
         self.logger.debug(vars(mirrorInfo))
         self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
         self.mirrorInfos[mirrorInfo.uid].timeStart = time.time()
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
+        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
         self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
                                                   chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
 
@@ -1093,7 +1093,7 @@ class MirrorHelper(BaseHelper):
             self.logger.info('No Valid Mirror Found !')
             return
         for uid in uids:
-            self.botHelper.mirrorListenerHelper.updateStatus(uid, MirrorStatus.cancelMirror)
+            self.botHelper.listenerHelper.updateStatus(uid, MirrorStatus.cancelMirror)
 
     def genMirrorInfo(self, msg: telegram.Message) -> (bool, 'MirrorInfo'):
         mirrorInfo = MirrorInfo(msg, self.botHelper)
@@ -1239,7 +1239,7 @@ class AriaHelper(BaseHelper):
         if self.getDlObj(gid).followed_by_ids:
             self.gids[self.getUid(gid)] = self.getDlObj(gid).followed_by_ids[0]
             return
-        self.botHelper.mirrorListenerHelper.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
+        self.botHelper.listenerHelper.updateStatus(self.getUid(gid), MirrorStatus.downloadComplete)
 
     def onDownloadStop(self, _: aria2p.API, gid: str) -> None:
         self.logger.debug(vars(self.getDlObj(gid)))
@@ -1294,7 +1294,7 @@ class GoogleDriveHelper(BaseHelper):
                 self.downloadFolder(sourceFolderId=sourceId, dlPath=mirrorInfo.path, uid=mirrorInfo.uid)
             else:
                 self.downloadFile(sourceFileId=sourceId, dlPath=mirrorInfo.path, uid=mirrorInfo.uid)
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1312,7 +1312,7 @@ class GoogleDriveHelper(BaseHelper):
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFileDownloadUrl.format(fileId)
         else:
             time.sleep(self.botHelper.statusHelper.statusUpdateInterval)
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
+        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
 
     def cancelUpload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1576,7 +1576,7 @@ class TelegramHelper(BaseHelper):
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: media.file_size})
                 self.downloadMedia(media, mirrorInfo.path)
                 break
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
+        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
 
     def cancelDownload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1595,9 +1595,9 @@ class TelegramHelper(BaseHelper):
             if not self.uploadFolder(uploadPath, mirrorInfo.chatId, mirrorInfo.msgId):
                 upResponse = False
         if upResponse:
-            self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
+            self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.uploadComplete)
         if not upResponse:
-            self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
+            self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.cancelMirror)
 
     def cancelUpload(self, uid: str) -> None:
         raise NotImplementedError
@@ -1663,7 +1663,7 @@ class YouTubeHelper(BaseHelper):
                  MirrorInfo.updatableVars[3]: time.time()}
             self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
         if progressUpdate['status'] == 'finished':
-            self.botHelper.mirrorListenerHelper.updateStatus(uid, MirrorStatus.downloadComplete)
+            self.botHelper.listenerHelper.updateStatus(uid, MirrorStatus.downloadComplete)
 
 
 class CompressionHelper(BaseHelper):
@@ -1675,7 +1675,7 @@ class CompressionHelper(BaseHelper):
 
     def addCompression(self, mirrorInfo: 'MirrorInfo') -> None:
         self.compressSource(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
+        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.compressionComplete)
 
     def cancelCompression(self, uid: str) -> None:
         raise NotImplementedError
@@ -1700,7 +1700,7 @@ class DecompressionHelper(BaseHelper):
 
     def addDecompression(self, mirrorInfo: 'MirrorInfo') -> None:
         self.decompressArchive(os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0]))
-        self.botHelper.mirrorListenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
+        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.decompressionComplete)
 
     def cancelDecompression(self, uid: str) -> None:
         raise NotImplementedError
@@ -1804,7 +1804,7 @@ class StatusHelper(BaseHelper):
         self.lastStatusMsgTxt = ''
 
 
-class MirrorListenerHelper(BaseHelper):
+class ListenerHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
 
@@ -1850,7 +1850,7 @@ class MirrorListenerHelper(BaseHelper):
 
     def startWebhookServer(self, ready=None, forceEventLoop=False) -> None:
         self.webhookServer = WebhookServer(self.botHelper)
-        self.botHelper.threadingHelper.initThread(target=self.webhookServer.serveForever, name='MirrorListenerHelper.webhookServer',
+        self.botHelper.threadingHelper.initThread(target=self.webhookServer.serveForever, name='ListenerHelper.webhookServer',
                                                   forceEventLoop=forceEventLoop, ready=ready)
 
     def stopWebhookServer(self) -> None:
@@ -2136,7 +2136,7 @@ class MegaApiListener(mega.MegaListener):
         if transfer.getFileName() in [dlNode.getName() for dlNode in list(self.megaHelper.dlNodes.values())]:
             uid = self.megaHelper.getUid(transfer.getFileName())
             mirrorStatus = (MirrorStatus.downloadComplete if transfer.isFinished() else MirrorStatus.downloadError)
-            self.megaHelper.botHelper.mirrorListenerHelper.updateStatus(uid, mirrorStatus)
+            self.megaHelper.botHelper.listenerHelper.updateStatus(uid, mirrorStatus)
             self.megaHelper.dlNodes.pop(uid)
         self.logger.debug(f'Transfer Finished ({transfer} {transfer.getFileName()}); Result: {error}')
         self.megaHelper.apiWrapper.AsyncContinueEvent.set()
@@ -2346,7 +2346,7 @@ class WebhookHandler(tornado.web.RequestHandler):
         data = json.loads(json_string)
         self.set_status(200)
         self.logger.debug(f'Webhook Received Data: {data}')
-        self.botHelper.threadingHelper.initThread(target=self.botHelper.mirrorListenerHelper.updateStatusCallback,
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.listenerHelper.updateStatusCallback,
                                                   name=f"{data['mirrorUid']}-{data['mirrorStatus']}", uid=data['mirrorUid'])
 
     def _validate_post(self) -> None:
