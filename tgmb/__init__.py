@@ -1942,10 +1942,10 @@ class AriaHelper(BaseHelper):
             dlObj = self.getDlObj(self.gids[uid])
             currVars: typing.Dict[str, typing.Union[int, float, str]] = \
                 {
-                    MirrorInfo.updatableVars[0]: dlObj.total_length,
-                    MirrorInfo.updatableVars[1]: dlObj.completed_length,
-                    MirrorInfo.updatableVars[2]: dlObj.download_speed,
-                    MirrorInfo.updatableVars[3]: time.time()
+                    MirrorInfo.UpdatableVars[0]: dlObj.total_length,
+                    MirrorInfo.UpdatableVars[1]: dlObj.completed_length,
+                    MirrorInfo.UpdatableVars[2]: dlObj.download_speed,
+                    MirrorInfo.UpdatableVars[3]: time.time()
                 }
             self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
 
@@ -2015,7 +2015,7 @@ class GoogleDriveHelper(BaseHelper):
 
     def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
         sourceId = self.getIdFromUrl(mirrorInfo.downloadUrl)
-        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: self.getSizeById(sourceId)})
+        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.UpdatableVars[0]: self.getSizeById(sourceId)})
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
@@ -2038,7 +2038,7 @@ class GoogleDriveHelper(BaseHelper):
 
     def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
         if not (mirrorInfo.isGoogleDriveDownload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress)):
-            currVars = {MirrorInfo.updatableVars[0]: self.botHelper.getHelper.folderSize(mirrorInfo.path)}
+            currVars = {MirrorInfo.UpdatableVars[0]: self.botHelper.getHelper.folderSize(mirrorInfo.path)}
             self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars(currVars)
             uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
             if os.path.isdir(uploadPath):
@@ -2220,9 +2220,9 @@ class GoogleDriveHelper(BaseHelper):
         timeCurrent = time.time()
         timeDiff = timeCurrent - timeLast
         speedCurrent = (int(sizeUpdate / timeDiff) if timeDiff else speedLast)
-        self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars({MirrorInfo.updatableVars[1]: sizeCurrent,
-                                                                 MirrorInfo.updatableVars[2]: speedCurrent,
-                                                                 MirrorInfo.updatableVars[3]: timeCurrent})
+        self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars({MirrorInfo.UpdatableVars[1]: sizeCurrent,
+                                                                 MirrorInfo.UpdatableVars[2]: speedCurrent,
+                                                                 MirrorInfo.UpdatableVars[3]: timeCurrent})
 
 
 class MegaHelper(BaseHelper):
@@ -2251,7 +2251,7 @@ class MegaHelper(BaseHelper):
             self.dlNodes[mirrorInfo.uid] = self.apiWrapper.getFolderNode(mirrorInfo.downloadUrl)
         if 'file' in mirrorInfo.downloadUrl:
             self.dlNodes[mirrorInfo.uid] = self.apiWrapper.getFileNode(mirrorInfo.downloadUrl)
-        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({MirrorInfo.updatableVars[0]: int(self.dlNodes[mirrorInfo.uid].getSize())})
+        self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({MirrorInfo.UpdatableVars[0]: int(self.dlNodes[mirrorInfo.uid].getSize())})
         self.apiWrapper.downloadNode(self.dlNodes[mirrorInfo.uid], mirrorInfo.path)
 
     def cancelDownload(self, mirrorInfo: 'MirrorInfo') -> None:
@@ -2350,13 +2350,13 @@ class QbitTorrentHelper(BaseHelper):
         self.logger.debug(torrentInfo)
         currVars: typing.Dict[str, typing.Union[int, float, str]] = \
             {
-                MirrorInfo.updatableVars[0]: int(torrentInfo.size),
-                MirrorInfo.updatableVars[1]: int(torrentInfo.downloaded),
-                MirrorInfo.updatableVars[2]: int(torrentInfo.dlspeed),
-                MirrorInfo.updatableVars[3]: time.time(),
-                MirrorInfo.updatableVars[4]: True,
-                MirrorInfo.updatableVars[5]: int(torrentInfo.num_seeds),
-                MirrorInfo.updatableVars[6]: int(torrentInfo.num_leechs)
+                MirrorInfo.UpdatableVars[0]: int(torrentInfo.size),
+                MirrorInfo.UpdatableVars[1]: int(torrentInfo.downloaded),
+                MirrorInfo.UpdatableVars[2]: int(torrentInfo.dlspeed),
+                MirrorInfo.UpdatableVars[3]: time.time(),
+                MirrorInfo.UpdatableVars[4]: True,
+                MirrorInfo.UpdatableVars[5]: int(torrentInfo.num_seeds),
+                MirrorInfo.UpdatableVars[6]: int(torrentInfo.num_leechs)
             }
         self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
         self.checkState(torrentInfo)
@@ -2437,7 +2437,7 @@ class TelegramHelper(BaseHelper):
         replyTo = mirrorInfo.msg.reply_to_message
         for media in [replyTo.document, replyTo.audio, replyTo.video]:
             if media:
-                self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.updatableVars[0]: media.file_size})
+                self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars({mirrorInfo.UpdatableVars[0]: media.file_size})
                 self.downloadMedia(media, mirrorInfo.path)
                 break
         self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.downloadComplete)
@@ -2446,7 +2446,7 @@ class TelegramHelper(BaseHelper):
         raise NotImplementedError
 
     def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
-        currVars = {MirrorInfo.updatableVars[0]: self.botHelper.getHelper.folderSize(mirrorInfo.path)}
+        currVars = {MirrorInfo.UpdatableVars[0]: self.botHelper.getHelper.folderSize(mirrorInfo.path)}
         self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars(currVars)
         uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
         upResponse: bool = True
@@ -2529,10 +2529,10 @@ class YouTubeHelper(BaseHelper):
         if progressUpdate['status'] == 'downloading':
             currVars: typing.Dict[str, typing.Union[int, float, str]] = \
                 {
-                    MirrorInfo.updatableVars[0]: int((sizeTotal if (sizeTotal := progressUpdate['total_bytes']) else 0)),
-                    MirrorInfo.updatableVars[1]: int((sizeCurrent if (sizeCurrent := progressUpdate['downloaded_bytes']) else 0)),
-                    MirrorInfo.updatableVars[2]: int((speedCurrent if (speedCurrent := progressUpdate['speed']) else 0)),
-                    MirrorInfo.updatableVars[3]: time.time()
+                    MirrorInfo.UpdatableVars[0]: int((sizeTotal if (sizeTotal := progressUpdate['total_bytes']) else 0)),
+                    MirrorInfo.UpdatableVars[1]: int((sizeCurrent if (sizeCurrent := progressUpdate['downloaded_bytes']) else 0)),
+                    MirrorInfo.UpdatableVars[2]: int((speedCurrent if (speedCurrent := progressUpdate['speed']) else 0)),
+                    MirrorInfo.UpdatableVars[3]: time.time()
                 }
             self.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
         if progressUpdate['status'] == 'finished':
@@ -2699,10 +2699,10 @@ class MegaApiListener(mega.MegaListener):
             uid = self.megaHelper.getUid(transfer.getFileName())
             currVars: typing.Dict[str, typing.Union[int, float]] = \
                 {
-                    MirrorInfo.updatableVars[0]: int(transfer.getTotalBytes()),
-                    MirrorInfo.updatableVars[1]: int(transfer.getTransferredBytes()),
-                    MirrorInfo.updatableVars[2]: int(transfer.getSpeed()),
-                    MirrorInfo.updatableVars[3]: time.time()
+                    MirrorInfo.UpdatableVars[0]: int(transfer.getTotalBytes()),
+                    MirrorInfo.UpdatableVars[1]: int(transfer.getTransferredBytes()),
+                    MirrorInfo.UpdatableVars[2]: int(transfer.getSpeed()),
+                    MirrorInfo.UpdatableVars[3]: time.time()
                 }
             self.megaHelper.botHelper.mirrorHelper.mirrorInfos[uid].updateVars(currVars)
         self.logger.debug(f'Transfer Update ({transfer} {transfer.getFileName()}); '
@@ -2723,7 +2723,7 @@ class MegaApiListener(mega.MegaListener):
 
 
 class MirrorInfo:
-    updatableVars: typing.List[str] = \
+    UpdatableVars: typing.List[str] = \
         [
             'sizeTotal',
             'sizeCurrent',
@@ -2783,20 +2783,20 @@ class MirrorInfo:
 
     def updateVars(self, currVars: typing.Dict[str, typing.Union[int, float, str]]) -> None:
         currVarsKeys = list(currVars.keys())
-        if self.updatableVars[0] in currVarsKeys:
-            self.sizeTotal = currVars[self.updatableVars[0]]
-        if self.updatableVars[1] in currVarsKeys and self.updatableVars[2] in currVarsKeys:
-            self.sizeCurrent = currVars[self.updatableVars[1]]
-            self.speedCurrent = currVars[self.updatableVars[2]]
-            self.timeCurrent = currVars[self.updatableVars[3]]
+        if self.UpdatableVars[0] in currVarsKeys:
+            self.sizeTotal = currVars[self.UpdatableVars[0]]
+        if self.UpdatableVars[1] in currVarsKeys and self.UpdatableVars[2] in currVarsKeys:
+            self.sizeCurrent = currVars[self.UpdatableVars[1]]
+            self.speedCurrent = currVars[self.UpdatableVars[2]]
+            self.timeCurrent = currVars[self.UpdatableVars[3]]
             if self.sizeTotal != 0:
                 self.progressPercent = round(((self.sizeCurrent / self.sizeTotal) * 100), ndigits=2)
             if self.speedCurrent != 0:
                 self.timeEnd = self.timeCurrent + ((self.sizeTotal - self.sizeCurrent) / self.speedCurrent)
-        if self.updatableVars[4] in currVarsKeys:
+        if self.UpdatableVars[4] in currVarsKeys:
             self.isTorrent = True
-            self.numSeeders = currVars[self.updatableVars[5]]
-            self.numLeechers = currVars[self.updatableVars[6]]
+            self.numSeeders = currVars[self.UpdatableVars[5]]
+            self.numLeechers = currVars[self.UpdatableVars[6]]
 
 
 class MirrorStatus:
