@@ -2363,12 +2363,13 @@ class QbitTorrentHelper(BaseHelper):
         self.checkState(torrentInfo)
 
     def checkState(self, torrentInfo: typing.Any) -> None:
-        if torrentInfo.state in [
+        torrentState = qbittorrentapi.TorrentStates(torrentInfo.state)
+        if torrentState in [
             qbittorrentapi.TorrentStates.DOWNLOADING
         ]:
             return
         mirrorInfo = self.botHelper.mirrorHelper.mirrorInfos[self.getUid(torrentInfo.hash)]
-        if torrentInfo.state in [
+        if torrentState in [
             qbittorrentapi.TorrentStates.QUEUED_UPLOAD,
             qbittorrentapi.TorrentStates.STALLED_UPLOAD,
             qbittorrentapi.TorrentStates.FORCED_UPLOAD,
