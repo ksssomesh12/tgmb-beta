@@ -1052,6 +1052,94 @@ class LoggingHelper(BaseHelper):
                     self.logger.debug(f"Deleted: '{logFile}'")
 
 
+class MirrorHelper(BaseHelper):
+    def __init__(self, botHelper: BotHelper):
+        super().__init__(botHelper)
+
+    def initHelper(self) -> None:
+        super().initHelper()
+        self.mirrorInfos: typing.Dict[str, MirrorInfo] = {}
+        self.supportedArchiveFormats: typing.Dict[str, str] = \
+            {
+                'zip': '.zip',
+                'tar': '.tar',
+                'bztar': '.tar.bz2',
+                'gztar': '.tar.gz',
+                'xztar': '.tar.xz'
+            }
+
+    def addMirror(self, mirrorInfo: 'MirrorInfo') -> None:
+        self.logger.debug(vars(mirrorInfo))
+        self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
+        self.mirrorInfos[mirrorInfo.uid].timeStart = time.time()
+        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
+        self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
+                                                  chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
+
+    def cancelMirror(self, msg: telegram.Message) -> None:
+        if self.mirrorInfos == {}:
+            self.logger.info('No Active Downloads !')
+            return
+        uids: typing.List[str] = []
+        try:
+            msgTxt = msg.text.split(' ')[1].strip()
+            if msgTxt == 'all':
+                uids = list(self.mirrorInfos.keys())
+            if msgTxt in self.mirrorInfos.keys():
+                uids.append(msgTxt)
+        except IndexError:
+            replyTo = msg.reply_to_message
+            if replyTo:
+                msgId = replyTo.message_id
+                for mirrorInfo in self.mirrorInfos.values():
+                    if msgId == mirrorInfo.msgId:
+                        uids.append(mirrorInfo.uid)
+                        break
+        if len(uids) == 0:
+            self.logger.info('No Valid Mirror Found !')
+            return
+        for uid in uids:
+            self.botHelper.listenerHelper.updateStatus(uid, MirrorStatus.cancelMirror)
+
+    def genMirrorInfo(self, msg: telegram.Message) -> (bool, 'MirrorInfo'):
+        mirrorInfo = MirrorInfo(msg, self.botHelper)
+        isValidDl: bool = True
+        try:
+            mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
+            mirrorInfo.tag = msg.from_user.username
+            if re.findall(UrlRegex.googleDrive, mirrorInfo.downloadUrl):
+                mirrorInfo.isGoogleDriveDownload = True
+            elif re.findall(UrlRegex.mega, mirrorInfo.downloadUrl):
+                mirrorInfo.isMegaDownload = True
+            elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
+                mirrorInfo.isYouTubeDownload = True
+            elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
+                mirrorInfo.isQbitTorrentDownload = True
+            elif re.findall(UrlRegex.generalUrl, mirrorInfo.downloadUrl):
+                mirrorInfo.isAriaDownload = True
+            else:
+                isValidDl = False
+        except IndexError:
+            replyTo = msg.reply_to_message
+            if replyTo:
+                mirrorInfo.tag = replyTo.from_user.username
+                for media in [replyTo.document, replyTo.audio, replyTo.video]:
+                    if media:
+                        if media.mime_type == self.botHelper.torrentFileMimeType:
+                            mirrorInfo.isQbitTorrentDownload = True
+                            torrentFile = media.get_file().file_path
+                            mirrorInfo.downloadUrl = self.botHelper.getHelper.magnetFromTorrentFile(torrentFile)
+                            os.remove(torrentFile)
+                        else:
+                            mirrorInfo.isTelegramDownload = True
+                        break
+            else:
+                isValidDl = False
+        if not isValidDl:
+            self.logger.info('No Valid Link Provided !')
+        return isValidDl, mirrorInfo
+
+
 class StatusHelper(BaseHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
@@ -1736,94 +1824,6 @@ class MirrorConvHelper(BaseHelper):
         if self.mirrorInfo.isGoogleDriveUpload:
             mirrorInfoStr += f'[googleDriveUploadFolderId | {self.mirrorInfo.googleDriveUploadFolderId}]'
         return mirrorInfoStr
-
-
-class MirrorHelper(BaseHelper):
-    def __init__(self, botHelper: BotHelper):
-        super().__init__(botHelper)
-
-    def initHelper(self) -> None:
-        super().initHelper()
-        self.mirrorInfos: typing.Dict[str, MirrorInfo] = {}
-        self.supportedArchiveFormats: typing.Dict[str, str] = \
-            {
-                'zip': '.zip',
-                'tar': '.tar',
-                'bztar': '.tar.bz2',
-                'gztar': '.tar.gz',
-                'xztar': '.tar.xz'
-            }
-
-    def addMirror(self, mirrorInfo: 'MirrorInfo') -> None:
-        self.logger.debug(vars(mirrorInfo))
-        self.mirrorInfos[mirrorInfo.uid] = mirrorInfo
-        self.mirrorInfos[mirrorInfo.uid].timeStart = time.time()
-        self.botHelper.listenerHelper.updateStatus(mirrorInfo.uid, MirrorStatus.addMirror)
-        self.botHelper.threadingHelper.initThread(target=self.botHelper.statusHelper.addStatus, name=f'{mirrorInfo.uid}-addStatus',
-                                                  chatId=mirrorInfo.chatId, msgId=mirrorInfo.msgId)
-
-    def cancelMirror(self, msg: telegram.Message) -> None:
-        if self.mirrorInfos == {}:
-            self.logger.info('No Active Downloads !')
-            return
-        uids: typing.List[str] = []
-        try:
-            msgTxt = msg.text.split(' ')[1].strip()
-            if msgTxt == 'all':
-                uids = list(self.mirrorInfos.keys())
-            if msgTxt in self.mirrorInfos.keys():
-                uids.append(msgTxt)
-        except IndexError:
-            replyTo = msg.reply_to_message
-            if replyTo:
-                msgId = replyTo.message_id
-                for mirrorInfo in self.mirrorInfos.values():
-                    if msgId == mirrorInfo.msgId:
-                        uids.append(mirrorInfo.uid)
-                        break
-        if len(uids) == 0:
-            self.logger.info('No Valid Mirror Found !')
-            return
-        for uid in uids:
-            self.botHelper.listenerHelper.updateStatus(uid, MirrorStatus.cancelMirror)
-
-    def genMirrorInfo(self, msg: telegram.Message) -> (bool, 'MirrorInfo'):
-        mirrorInfo = MirrorInfo(msg, self.botHelper)
-        isValidDl: bool = True
-        try:
-            mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
-            mirrorInfo.tag = msg.from_user.username
-            if re.findall(UrlRegex.googleDrive, mirrorInfo.downloadUrl):
-                mirrorInfo.isGoogleDriveDownload = True
-            elif re.findall(UrlRegex.mega, mirrorInfo.downloadUrl):
-                mirrorInfo.isMegaDownload = True
-            elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
-                mirrorInfo.isYouTubeDownload = True
-            elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
-                mirrorInfo.isQbitTorrentDownload = True
-            elif re.findall(UrlRegex.generalUrl, mirrorInfo.downloadUrl):
-                mirrorInfo.isAriaDownload = True
-            else:
-                isValidDl = False
-        except IndexError:
-            replyTo = msg.reply_to_message
-            if replyTo:
-                mirrorInfo.tag = replyTo.from_user.username
-                for media in [replyTo.document, replyTo.audio, replyTo.video]:
-                    if media:
-                        if media.mime_type == self.botHelper.torrentFileMimeType:
-                            mirrorInfo.isQbitTorrentDownload = True
-                            torrentFile = media.get_file().file_path
-                            mirrorInfo.downloadUrl = self.botHelper.getHelper.magnetFromTorrentFile(torrentFile)
-                            os.remove(torrentFile)
-                        else:
-                            mirrorInfo.isTelegramDownload = True
-                        break
-            else:
-                isValidDl = False
-        if not isValidDl:
-            self.logger.info('No Valid Link Provided !')
-        return isValidDl, mirrorInfo
 
 
 class AriaHelper(BaseHelper):
