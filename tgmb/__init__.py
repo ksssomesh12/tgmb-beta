@@ -746,6 +746,8 @@ class ListenerHelper(BaseHelper):
                 self.botHelper.telegramHelper.cancelDownload(mirrorInfo)
             if mirrorInfo.isYouTubeDownload:
                 self.botHelper.youTubeHelper.cancelDownload(mirrorInfo)
+            self.downloadQueue.remove(mirrorInfo.uid)
+            self.downloadQueueActive -= 1
             self.checkDownloadQueue()
         if mirrorInfo.previousStatus in [
             MirrorStatus.uploadProgress
@@ -756,6 +758,8 @@ class ListenerHelper(BaseHelper):
                 self.botHelper.megaHelper.cancelUpload(mirrorInfo)
             if mirrorInfo.isTelegramUpload:
                 self.botHelper.telegramHelper.cancelUpload(mirrorInfo)
+            self.uploadQueue.remove(mirrorInfo.uid)
+            self.uploadQueueActive -= 1
             self.checkUploadQueue()
         if mirrorInfo.previousStatus in [
             MirrorStatus.compressionProgress,
