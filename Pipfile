@@ -11,6 +11,8 @@ google-auth-oauthlib = "==0.4.4"
 psutil = "==5.8.0"
 python-magic = "==0.4.24"
 python-telegram-bot = "==13.5"
+qbittorrent-api = "==2021.8.23"
+torrentool = "==1.1.1"
 youtube_dl = "==2021.6.6"
 
 [dev-packages]
