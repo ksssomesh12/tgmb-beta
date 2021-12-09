@@ -70,6 +70,29 @@ class BaseHelper:
         self.logger = self.botHelper.loggingHelper.logger.bind(classname=self.__class__.__name__)
 
 
+class BaseMirrorHelper(BaseHelper):
+    def __init__(self, botHelper: 'BotHelper'):
+        super().__init__(botHelper)
+
+    def initHelper(self) -> None:
+        super().initHelper()
+
+    def initLogger(self) -> None:
+        super().initLogger()
+
+    def addDownload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+    def cancelDownload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+    def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+    def cancelUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+
 class BotHelper(BaseHelper):
     def __init__(self):
         self.configHelper = ConfigHelper(self)
@@ -1825,7 +1848,7 @@ class MirrorConvHelper(BaseHelper):
         return mirrorInfoStr
 
 
-class AriaHelper(BaseHelper):
+class AriaHelper(BaseMirrorHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
 
@@ -1861,6 +1884,12 @@ class AriaHelper(BaseHelper):
     def cancelDownload(self, mirrorInfo: 'MirrorInfo') -> None:
         self.getDlObj(self.gids[mirrorInfo.uid]).remove(force=True)
         self.gids.pop(mirrorInfo.uid)
+
+    def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+    def cancelUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
 
     def getUid(self, gid: str) -> str:
         for uid in self.gids.keys():
@@ -1977,7 +2006,7 @@ class AriaHelper(BaseHelper):
         self.logger.debug(vars(self.getDlObj(gid)))
 
 
-class GoogleDriveHelper(BaseHelper):
+class GoogleDriveHelper(BaseMirrorHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
 
@@ -2224,7 +2253,7 @@ class GoogleDriveHelper(BaseHelper):
                                                                  MirrorInfo.UpdatableVars[3]: timeCurrent})
 
 
-class MegaHelper(BaseHelper):
+class MegaHelper(BaseMirrorHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
 
@@ -2268,7 +2297,7 @@ class MegaHelper(BaseHelper):
                 return uid
 
 
-class QbitTorrentHelper(BaseHelper):
+class QbitTorrentHelper(BaseMirrorHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
 
@@ -2294,6 +2323,12 @@ class QbitTorrentHelper(BaseHelper):
 
     def cancelDownload(self, mirrorInfo: 'MirrorInfo') -> None:
         self.pauseAndRemoveTorrent(mirrorInfo.uid)
+
+    def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+    def cancelUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
 
     def daemonStart(self) -> None:
         if self.botHelper.restartVars and self.botHelper.restartVars['qbitDaemonPid']:
@@ -2391,7 +2426,7 @@ class QbitTorrentHelper(BaseHelper):
         self.torrentHashes.pop(uid)
 
 
-class TelegramHelper(BaseHelper):
+class TelegramHelper(BaseMirrorHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
 
@@ -2496,7 +2531,7 @@ class TelegramHelper(BaseHelper):
         return True
 
 
-class YouTubeHelper(BaseHelper):
+class YouTubeHelper(BaseMirrorHelper):
     def __init__(self, botHelper: BotHelper):
         super().__init__(botHelper)
 
@@ -2516,6 +2551,12 @@ class YouTubeHelper(BaseHelper):
         self.downloadVideo(mirrorInfo.downloadUrl, ytdlOpts)
 
     def cancelDownload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+    def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
+        raise NotImplementedError
+
+    def cancelUpload(self, mirrorInfo: 'MirrorInfo') -> None:
         raise NotImplementedError
 
     @staticmethod
