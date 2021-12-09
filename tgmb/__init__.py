@@ -334,7 +334,7 @@ class ConfigHelper(BaseHelper):
                         },
                         'WebUI': {
                             'Enabled': 'true',
-                            'Port': '8090',
+                            'Port': '8400',
                             'LocalHostAuth': 'false'
                         }
                     }
