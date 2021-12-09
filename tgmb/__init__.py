@@ -5,7 +5,6 @@
 # TODO: code for direct link generation
 # TODO: add hard-restart (restart all subprocesses)
 # TODO: decide between confDefaults and optVals for AriaHelper, QbitTorrentHelper
-# TODO: remove redundant 'apt-get clean' in Dockerfile
 import aria2p
 import asyncio
 import googleapiclient.discovery
