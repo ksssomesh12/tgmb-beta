@@ -3,7 +3,7 @@ import setuptools
 
 setuptools.setup(
     name="tgmb",
-    version="0.0.0" + 'b' + os.environ["PKG_VER"].replace('v', '').replace('.', '').replace('b', ''),
+    version="0.0.0" + 'b' + os.environ["PKG_VER"].replace('refs/tags/v', '').replace('.', '').replace('b', ''),
     author="SomesH S",
     author_email="ksssomesh12@gmail.com",
     description="Predecessor to `tgmb`",
