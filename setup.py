@@ -1,8 +1,9 @@
+import os
 import setuptools
 
 setuptools.setup(
     name="tgmb",
-    version="0.0.0",
+    version="0.0.0" + 'b' + os.environ["PKG_VER"].replace('v', '').replace('.', '').replace('b', ''),
     author="SomesH S",
     author_email="ksssomesh12@gmail.com",
     description="Predecessor to `tgmb`",
