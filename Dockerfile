@@ -1,24 +1,24 @@
-FROM ubuntu:latest as base
+FROM ubuntu:focal as base
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y aria2 curl ffmpeg jq libc++-dev locales nano pv python3 python3-pip python3-lxml tzdata && \
     rm -rf /var/lib/apt/lists/*
 RUN locale-gen en_US.UTF-8
 
-FROM ubuntu:latest as api
+FROM ubuntu:focal as api
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y git gperf make cmake clang-10 libc++-dev libc++abi-dev libssl-dev zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 RUN git clone --recursive https://github.com/tdlib/telegram-bot-api.git && cd telegram-bot-api && \
-    git checkout e9587a0 && git submodule update && mkdir build && cd build && \
+    git checkout 24ee05d && git submodule update && mkdir build && cd build && \
     CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-10 CXX=/usr/bin/clang++-10 \
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. .. && \
     cmake --build . --target install -- -j $(nproc) && cd .. && \
     ls -lh bin/telegram-bot-api*
 
-FROM ubuntu:latest as mega
+FROM ubuntu:focal as mega
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y autoconf automake gcc g++ git libtool make python3 python3-dev python3-distutils python3-pip && \
@@ -27,7 +27,7 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
-    git checkout v3.9.10 && \
+    git checkout v3.12.2 && \
     ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
