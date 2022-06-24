@@ -1,11 +1,11 @@
-FROM ubuntu:latest as base
+FROM ubuntu:focal as base
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y aria2 curl ffmpeg jq libc++-dev locales nano pv python3 python3-pip python3-lxml tzdata && \
     rm -rf /var/lib/apt/lists/*
 RUN locale-gen en_US.UTF-8
 
-FROM ubuntu:latest as api
+FROM ubuntu:focal as api
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y git gperf make cmake clang-10 libc++-dev libc++abi-dev libssl-dev zlib1g-dev && \
@@ -18,7 +18,7 @@ RUN git clone --recursive https://github.com/tdlib/telegram-bot-api.git && cd te
     cmake --build . --target install -- -j $(nproc) && cd .. && \
     ls -lh bin/telegram-bot-api*
 
-FROM ubuntu:latest as mega
+FROM ubuntu:focal as mega
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y autoconf automake gcc g++ git libtool make python3 python3-dev python3-distutils python3-pip && \
