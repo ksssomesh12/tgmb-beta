@@ -12,7 +12,7 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 RUN git clone --recursive https://github.com/tdlib/telegram-bot-api.git && cd telegram-bot-api && \
-    git checkout 24ee05d && git submodule update && mkdir build && cd build && \
+    git checkout ab2f0f0 && git submodule update && mkdir build && cd build && \
     CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-10 CXX=/usr/bin/clang++-10 \
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. .. && \
     cmake --build . --target install -- -j $(nproc) && cd .. && \
@@ -27,7 +27,7 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
-    git checkout v3.12.2 && \
+    git checkout v4.6.0 && \
     ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
