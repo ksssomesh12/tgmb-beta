@@ -27,7 +27,7 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
-    git checkout v3.12.2 && \
+    git checkout v4.6.0 && \
     ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
