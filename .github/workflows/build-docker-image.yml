@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2.1.0
         with:
           registry: ghcr.io
           username: ksssomesh12
@@ -15,11 +15,11 @@ jobs:
 
       - name: Setup Docker Buildx
         id: setup_buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Cache Docker Layers
         id: cache_docker_layers
-        uses: actions/cache@v2
+        uses: actions/cache@v3.0.11
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-tgmb-base-${{ github.sha }}
@@ -27,7 +27,7 @@ jobs:
 
       - name: Build-Push Docker Image
         id: docker_build_push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3.2.0
         with:
           builder: ${{ steps.setup_buildx.outputs.name }}
           target: base
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2.1.0
         with:
           registry: ghcr.io
           username: ksssomesh12
@@ -56,11 +56,11 @@ jobs:
 
       - name: Setup Docker Buildx
         id: setup_buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Cache Docker Layers
         id: cache_docker_layers
-        uses: actions/cache@v2
+        uses: actions/cache@v3.0.11
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-tgmb-api-${{ github.sha }}
@@ -68,7 +68,7 @@ jobs:
 
       - name: Build-Push Docker Image
         id: docker_build_push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3.2.0
         with:
           builder: ${{ steps.setup_buildx.outputs.name }}
           target: api
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2.1.0
         with:
           registry: ghcr.io
           username: ksssomesh12
@@ -97,11 +97,11 @@ jobs:
 
       - name: Setup Docker Buildx
         id: setup_buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Cache Docker Layers
         id: cache_docker_layers
-        uses: actions/cache@v2
+        uses: actions/cache@v3.0.11
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-tgmb-mega-${{ github.sha }}
@@ -109,7 +109,7 @@ jobs:
 
       - name: Build-Push Docker Image
         id: docker_build_push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3.2.0
         with:
           builder: ${{ steps.setup_buildx.outputs.name }}
           target: mega
@@ -131,7 +131,7 @@ jobs:
     needs: [build-base, build-api, build-mega]
     steps:
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2.1.0
         with:
           registry: ghcr.io
           username: ksssomesh12
@@ -139,24 +139,19 @@ jobs:
 
       - name: Setup Docker Buildx
         id: setup_buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Cache Docker Layers
         id: cache_docker_layers
-        uses: actions/cache@v2
+        uses: actions/cache@v3.0.11
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-tgmb-app-${{ github.sha }}
           restore-keys: ${{ runner.os }}-buildx-tgmb-app-
 
-      - name: Get Branch/Tag Ref
-        id: get_ref
-        shell: bash
-        run: echo "##[set-output name=ref;]$(echo ${GITHUB_REF##*/})"
-
       - name: Build-Push Docker Image
         id: docker_build_push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3.2.0
         with:
           builder: ${{ steps.setup_buildx.name }}
           target: app
@@ -165,7 +160,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/ksssomesh12/tgmb-beta:${{ github.sha }}
-            ghcr.io/ksssomesh12/tgmb-beta:${{ steps.get_ref.outputs.ref }}
+            ghcr.io/ksssomesh12/tgmb-beta:${{ github.ref_name }}
 
       - name: Docker Image Digest
         run: echo ${{ steps.docker_build_push.outputs.digest }}
