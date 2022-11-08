@@ -1,3 +1,9 @@
 [submodule "deploy"]
 	path = deploy
 	url = https://github.com/ksssomesh12/tgmb-beta-deploy.git
+[submodule "api"]
+	path = api
+	url = https://github.com/tdlib/telegram-bot-api.git
+[submodule "sdk"]
+	path = sdk
+	url = https://github.com/meganz/sdk.git
