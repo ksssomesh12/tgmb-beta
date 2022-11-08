@@ -1,24 +1,17 @@
-FROM ubuntu:focal as base
+FROM ubuntu:jammy as api
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y aria2 curl ffmpeg jq libc++-dev locales nano pv python3 python3-pip python3-lxml tzdata && \
-    rm -rf /var/lib/apt/lists/*
-RUN locale-gen en_US.UTF-8
-
-FROM ubuntu:focal as api
-ENV DEBIAN_FRONTEND='noninteractive'
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y git gperf make cmake clang-10 libc++-dev libc++abi-dev libssl-dev zlib1g-dev && \
+    apt-get install -y git gperf make cmake clang-14 libc++-dev libc++abi-dev libssl-dev zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
-RUN git clone --recursive https://github.com/tdlib/telegram-bot-api.git && cd telegram-bot-api && \
-    git checkout ab2f0f0 && git submodule update && mkdir build && cd build && \
-    CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-10 CXX=/usr/bin/clang++-10 \
+COPY api api
+RUN cd api && rm -rf .git && mkdir build && cd build && \
+    CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-14 CXX=/usr/bin/clang++-14 \
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. .. && \
     cmake --build . --target install -- -j $(nproc) && cd .. && \
     ls -lh bin/telegram-bot-api*
 
-FROM ubuntu:focal as mega
+FROM ubuntu:jammy as sdk
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y autoconf automake gcc g++ git libtool make python3 python3-dev python3-distutils python3-pip && \
@@ -26,34 +19,34 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y libsqlite3-dev libssl-dev swig zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
-RUN git clone https://github.com/meganz/sdk.git mega-sdk/ && cd mega-sdk/ && \
-    git checkout v4.6.0 && \
-    ./autogen.sh && ./configure --disable-silent-rules --enable-python --with-sodium --disable-examples && \
+COPY sdk sdk
+COPY ac-m4-py.patch .
+RUN cd sdk && rm -rf .git && mv ../ac-m4-py.patch ./ && git apply ac-m4-py.patch && ./clean.sh && ./autogen.sh && \
+    ./configure --disable-examples --disable-silent-rules --enable-python --with-sodium && \
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
 
-FROM ghcr.io/ksssomesh12/tgmb-beta:base as app-base
 FROM ghcr.io/ksssomesh12/tgmb-beta:api as app-api
-FROM ghcr.io/ksssomesh12/tgmb-beta:mega as app-mega
+FROM ghcr.io/ksssomesh12/tgmb-beta:sdk as app-sdk
 
-FROM scratch as app
-COPY --from=app-base / /
-COPY --from=app-api /root/telegram-bot-api/bin/telegram-bot-api /usr/bin/telegram-bot-api
-COPY --from=app-mega /root/mega-sdk /root/mega-sdk
-ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
+FROM ubuntu:jammy as app
+COPY --from=app-api /root/api/bin/telegram-bot-api /usr/bin/telegram-bot-api
+COPY --from=app-sdk /root/sdk /root/sdk
 ENV DEBIAN_FRONTEND='noninteractive'
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y libcrypto++-dev libfreeimage-dev && \
-    apt-get install -y software-properties-common && \
+    apt-get install -y aria2 curl ffmpeg jq locales nano pv python3 python3-pip python3-lxml tzdata && \
+    apt-get install -y libc++-dev libmagic-dev libcrypto++-dev libfreeimage-dev software-properties-common && \
     add-apt-repository ppa:qbittorrent-team/qbittorrent-stable && \
     apt-get install -y qbittorrent-nox && \
     apt-get purge -y software-properties-common && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
-RUN pip3 install --no-cache-dir /root/mega-sdk/bindings/python/dist/megasdk-*.whl
+RUN locale-gen en_US.UTF-8
+RUN pip3 install --no-cache-dir /root/sdk/bindings/python/dist/megasdk-*.whl
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
-COPY . .
+COPY tgmb tgmb
 CMD ["python3", "-m", "tgmb"]
