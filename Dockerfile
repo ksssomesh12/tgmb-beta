@@ -1,7 +1,8 @@
 FROM ubuntu:jammy as base
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y aria2 curl ffmpeg jq libc++-dev locales nano pv python3 python3-pip python3-lxml tzdata && \
+    apt-get install -y aria2 curl ffmpeg jq locales nano pv python3 python3-pip python3-lxml tzdata && \
+    apt-get install -y libc++-dev libmagic-dev && \
     rm -rf /var/lib/apt/lists/*
 RUN locale-gen en_US.UTF-8
 
