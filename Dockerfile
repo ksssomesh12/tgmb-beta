@@ -13,7 +13,7 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 COPY api api
-RUN cd api && mkdir build && cd build && \
+RUN cd api && rm -rf .git && mkdir build && cd build && \
     CXXFLAGS="-stdlib=libc++" CC=/usr/bin/clang-14 CXX=/usr/bin/clang++-14 \
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=.. .. && \
     cmake --build . --target install -- -j $(nproc) && cd .. && \
@@ -28,8 +28,8 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 COPY sdk sdk
-COPY ac-m4-py.patch sdk
-RUN cd sdk && git apply ac-m4-py.patch && ./clean.sh && ./autogen.sh && \
+COPY ac-m4-py.patch .
+RUN cd sdk && rm -rf .git && mv ../ac-m4-py.patch ./ && git apply ac-m4-py.patch && ./clean.sh && ./autogen.sh && \
     ./configure --disable-examples --disable-silent-rules --enable-python --with-sodium && \
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
