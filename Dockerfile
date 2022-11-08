@@ -28,7 +28,8 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /root
 COPY sdk sdk
-RUN cd sdk && ./autogen.sh && \
+COPY ac-m4-py.patch sdk
+RUN cd sdk && git apply ac-m4-py.patch && ./clean.sh && ./autogen.sh && \
     ./configure --disable-examples --disable-silent-rules --enable-python --with-sodium && \
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
