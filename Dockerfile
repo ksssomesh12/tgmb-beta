@@ -1,11 +1,3 @@
-FROM ubuntu:jammy as base
-ENV DEBIAN_FRONTEND='noninteractive'
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y aria2 curl ffmpeg jq locales nano pv python3 python3-pip python3-lxml tzdata && \
-    apt-get install -y libc++-dev libmagic-dev && \
-    rm -rf /var/lib/apt/lists/*
-RUN locale-gen en_US.UTF-8
-
 FROM ubuntu:jammy as api
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
@@ -34,28 +26,27 @@ RUN cd sdk && rm -rf .git && mv ../ac-m4-py.patch ./ && git apply ac-m4-py.patch
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
 
-FROM ghcr.io/ksssomesh12/tgmb-beta:base as app-base
 FROM ghcr.io/ksssomesh12/tgmb-beta:api as app-api
 FROM ghcr.io/ksssomesh12/tgmb-beta:sdk as app-sdk
 
-FROM scratch as app
-COPY --from=app-base / /
+FROM ubuntu:jammy as app
 COPY --from=app-api /root/api/bin/telegram-bot-api /usr/bin/telegram-bot-api
 COPY --from=app-sdk /root/sdk /root/sdk
-ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 ENV DEBIAN_FRONTEND='noninteractive'
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y libcrypto++-dev libfreeimage-dev && \
-    apt-get install -y software-properties-common && \
+    apt-get install -y aria2 curl ffmpeg jq locales nano pv python3 python3-pip python3-lxml tzdata && \
+    apt-get install -y libc++-dev libmagic-dev libcrypto++-dev libfreeimage-dev software-properties-common && \
     add-apt-repository ppa:qbittorrent-team/qbittorrent-stable && \
     apt-get install -y qbittorrent-nox && \
     apt-get purge -y software-properties-common && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
+RUN locale-gen en_US.UTF-8
 RUN pip3 install --no-cache-dir /root/sdk/bindings/python/dist/megasdk-*.whl
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
-COPY . .
+COPY tgmb tgmb
 CMD ["python3", "-m", "tgmb"]
