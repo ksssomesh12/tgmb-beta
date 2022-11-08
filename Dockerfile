@@ -19,7 +19,7 @@ RUN cd api && mkdir build && cd build && \
     cmake --build . --target install -- -j $(nproc) && cd .. && \
     ls -lh bin/telegram-bot-api*
 
-FROM ubuntu:jammy as mega
+FROM ubuntu:jammy as sdk
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y autoconf automake gcc g++ git libtool make python3 python3-dev python3-distutils python3-pip && \
@@ -35,12 +35,12 @@ RUN cd sdk && ./autogen.sh && \
 
 FROM ghcr.io/ksssomesh12/tgmb-beta:base as app-base
 FROM ghcr.io/ksssomesh12/tgmb-beta:api as app-api
-FROM ghcr.io/ksssomesh12/tgmb-beta:mega as app-mega
+FROM ghcr.io/ksssomesh12/tgmb-beta:sdk as app-sdk
 
 FROM scratch as app
 COPY --from=app-base / /
-COPY --from=app-api /root/telegram-bot-api/bin/telegram-bot-api /usr/bin/telegram-bot-api
-COPY --from=app-mega /root/mega-sdk /root/mega-sdk
+COPY --from=app-api /root/api/bin/telegram-bot-api /usr/bin/telegram-bot-api
+COPY --from=app-sdk /root/sdk /root/sdk
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 ENV DEBIAN_FRONTEND='noninteractive'
 RUN apt-get update && apt-get upgrade -y && \
@@ -51,7 +51,7 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get purge -y software-properties-common && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
-RUN pip3 install --no-cache-dir /root/mega-sdk/bindings/python/dist/megasdk-*.whl
+RUN pip3 install --no-cache-dir /root/sdk/bindings/python/dist/megasdk-*.whl
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
 COPY requirements.txt .
