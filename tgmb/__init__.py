@@ -7,6 +7,7 @@
 # TODO: decide between confDefaults and optVals for AriaHelper, QbitTorrentHelper
 import aria2p
 import asyncio
+import enum
 import googleapiclient.discovery
 import googleapiclient.errors
 import googleapiclient.http
@@ -733,30 +734,32 @@ class ListenerHelper(BaseHelper):
         if mirrorInfo.previousStatus in [
             MirrorStatus.downloadProgress
         ]:
-            if mirrorInfo.isAriaDownload:
-                self.botHelper.ariaHelper.cancelDownload(mirrorInfo)
-            if mirrorInfo.isGoogleDriveDownload:
-                self.botHelper.googleDriveHelper.cancelDownload(mirrorInfo)
-            if mirrorInfo.isMegaDownload:
-                self.botHelper.megaHelper.cancelDownload(mirrorInfo)
-            if mirrorInfo.isQbitTorrentDownload:
-                self.botHelper.qbitTorrentHelper.cancelDownload(mirrorInfo)
-            if mirrorInfo.isTelegramDownload:
-                self.botHelper.telegramHelper.cancelDownload(mirrorInfo)
-            if mirrorInfo.isYouTubeDownload:
-                self.botHelper.youTubeHelper.cancelDownload(mirrorInfo)
+            match mirrorInfo.downloadType:
+                case DownloadType.Aria:
+                    self.botHelper.ariaHelper.cancelDownload(mirrorInfo)
+                case DownloadType.GoogleDrive:
+                    self.botHelper.googleDriveHelper.cancelDownload(mirrorInfo)
+                case DownloadType.Mega:
+                    self.botHelper.megaHelper.cancelDownload(mirrorInfo)
+                case DownloadType.QbitTorrent:
+                    self.botHelper.qbitTorrentHelper.cancelDownload(mirrorInfo)
+                case DownloadType.Telegram:
+                    self.botHelper.telegramHelper.cancelDownload(mirrorInfo)
+                case DownloadType.YouTube:
+                    self.botHelper.youTubeHelper.cancelDownload(mirrorInfo)
             self.downloadQueue.remove(mirrorInfo.uid)
             self.downloadQueueActive -= 1
             self.checkDownloadQueue()
         if mirrorInfo.previousStatus in [
             MirrorStatus.uploadProgress
         ]:
-            if mirrorInfo.isGoogleDriveUpload:
-                self.botHelper.googleDriveHelper.cancelUpload(mirrorInfo)
-            if mirrorInfo.isMegaUpload:
-                self.botHelper.megaHelper.cancelUpload(mirrorInfo)
-            if mirrorInfo.isTelegramUpload:
-                self.botHelper.telegramHelper.cancelUpload(mirrorInfo)
+            match mirrorInfo.uploadType:
+                case UploadType.GoogleDrive:
+                    self.botHelper.googleDriveHelper.cancelUpload(mirrorInfo)
+                case UploadType.Mega:
+                    self.botHelper.megaHelper.cancelUpload(mirrorInfo)
+                case UploadType.Telegram:
+                    self.botHelper.telegramHelper.cancelUpload(mirrorInfo)
             self.uploadQueue.remove(mirrorInfo.uid)
             self.uploadQueueActive -= 1
             self.checkUploadQueue()
@@ -802,7 +805,7 @@ class ListenerHelper(BaseHelper):
     def onCompleteMirror(self, mirrorInfo: 'MirrorInfo') -> None:
         shutil.rmtree(mirrorInfo.path)
         self.botHelper.mirrorHelper.mirrorInfos.pop(mirrorInfo.uid)
-        if mirrorInfo.isGoogleDriveUpload or mirrorInfo.isMegaUpload:
+        if mirrorInfo.uploadType != UploadType.Telegram:
             self.botHelper.bot.sendMessage(text=f'Uploaded: [{mirrorInfo.uid}] [{mirrorInfo.uploadUrl}]',
                                            parse_mode='HTML', chat_id=mirrorInfo.chatId, reply_to_message_id=mirrorInfo.msgId)
 
@@ -822,24 +825,25 @@ class ListenerHelper(BaseHelper):
 
     def onDownloadStart(self, mirrorInfo: 'MirrorInfo') -> None:
         os.mkdir(mirrorInfo.path)
-        if mirrorInfo.isAriaDownload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.ariaHelper.addDownload,
-                                                      name=f'{mirrorInfo.uid}-AriaDownload', mirrorInfo=mirrorInfo)
-        if mirrorInfo.isGoogleDriveDownload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.googleDriveHelper.addDownload,
-                                                      name=f'{mirrorInfo.uid}-GoogleDriveDownload', mirrorInfo=mirrorInfo)
-        if mirrorInfo.isMegaDownload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.megaHelper.addDownload,
-                                                      name=f'{mirrorInfo.uid}-MegaDownload', mirrorInfo=mirrorInfo)
-        if mirrorInfo.isQbitTorrentDownload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.qbitTorrentHelper.addDownload,
-                                                      name=f'{mirrorInfo.uid}-QbitTorrentDownload', mirrorInfo=mirrorInfo)
-        if mirrorInfo.isTelegramDownload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.telegramHelper.addDownload,
-                                                      name=f'{mirrorInfo.uid}-TelegramDownload', mirrorInfo=mirrorInfo)
-        if mirrorInfo.isYouTubeDownload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.youTubeHelper.addDownload,
-                                                      name=f'{mirrorInfo.uid}-YouTubeDownload', mirrorInfo=mirrorInfo)
+        match mirrorInfo.downloadType:
+            case DownloadType.Aria:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.ariaHelper.addDownload,
+                                                          name=f'{mirrorInfo.uid}-AriaDownload', mirrorInfo=mirrorInfo)
+            case DownloadType.GoogleDrive:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.googleDriveHelper.addDownload,
+                                                          name=f'{mirrorInfo.uid}-GoogleDriveDownload', mirrorInfo=mirrorInfo)
+            case DownloadType.Mega:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.megaHelper.addDownload,
+                                                          name=f'{mirrorInfo.uid}-MegaDownload', mirrorInfo=mirrorInfo)
+            case DownloadType.QbitTorrent:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.qbitTorrentHelper.addDownload,
+                                                          name=f'{mirrorInfo.uid}-QbitTorrentDownload', mirrorInfo=mirrorInfo)
+            case DownloadType.Telegram:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.telegramHelper.addDownload,
+                                                          name=f'{mirrorInfo.uid}-TelegramDownload', mirrorInfo=mirrorInfo)
+            case DownloadType.YouTube:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.youTubeHelper.addDownload,
+                                                          name=f'{mirrorInfo.uid}-YouTubeDownload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.downloadProgress)
 
     def onDownloadProgress(self, mirrorInfo: 'MirrorInfo') -> None:
@@ -953,15 +957,16 @@ class ListenerHelper(BaseHelper):
         self.checkUploadQueue()
 
     def onUploadStart(self, mirrorInfo: 'MirrorInfo') -> None:
-        if mirrorInfo.isGoogleDriveUpload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.googleDriveHelper.addUpload,
-                                                      name=f'{mirrorInfo.uid}-GoogleDriveUpload', mirrorInfo=mirrorInfo)
-        if mirrorInfo.isMegaUpload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.megaHelper.addUpload,
-                                                      name=f'{mirrorInfo.uid}-MegaUpload', mirrorInfo=mirrorInfo)
-        if mirrorInfo.isTelegramUpload:
-            self.botHelper.threadingHelper.initThread(target=self.botHelper.telegramHelper.addUpload,
-                                                      name=f'{mirrorInfo.uid}-TelegramUpload', mirrorInfo=mirrorInfo)
+        match mirrorInfo.uploadType:
+            case UploadType.GoogleDrive:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.googleDriveHelper.addUpload,
+                                                          name=f'{mirrorInfo.uid}-GoogleDriveUpload', mirrorInfo=mirrorInfo)
+            case UploadType.Mega:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.megaHelper.addUpload,
+                                                          name=f'{mirrorInfo.uid}-MegaUpload', mirrorInfo=mirrorInfo)
+            case UploadType.Telegram:
+                self.botHelper.threadingHelper.initThread(target=self.botHelper.telegramHelper.addUpload,
+                                                          name=f'{mirrorInfo.uid}-TelegramUpload', mirrorInfo=mirrorInfo)
         self.updateStatus(mirrorInfo.uid, MirrorStatus.uploadProgress)
 
     def onUploadProgress(self, mirrorInfo: 'MirrorInfo') -> None:
@@ -1102,22 +1107,21 @@ class MirrorHelper(BaseHelper):
 
     def genMirrorInfo(self, msg: telegram.Message) -> (bool, 'MirrorInfo'):
         mirrorInfo = MirrorInfo(msg, self.botHelper)
-        isValidDl: bool = True
         try:
             mirrorInfo.downloadUrl = msg.text.split(' ')[1].strip()
             mirrorInfo.tag = msg.from_user.username
             if re.findall(UrlRegex.googleDrive, mirrorInfo.downloadUrl):
-                mirrorInfo.isGoogleDriveDownload = True
+                mirrorInfo.downloadType = DownloadType.GoogleDrive
             elif re.findall(UrlRegex.mega, mirrorInfo.downloadUrl):
-                mirrorInfo.isMegaDownload = True
+                mirrorInfo.downloadType = DownloadType.Mega
             elif re.findall(UrlRegex.youTube, mirrorInfo.downloadUrl):
-                mirrorInfo.isYouTubeDownload = True
+                mirrorInfo.downloadType = DownloadType.YouTube
             elif re.findall(UrlRegex.bittorrentMagnet, mirrorInfo.downloadUrl):
-                mirrorInfo.isQbitTorrentDownload = True
+                mirrorInfo.downloadType = DownloadType.QbitTorrent
             elif re.findall(UrlRegex.generalUrl, mirrorInfo.downloadUrl):
-                mirrorInfo.isAriaDownload = True
+                mirrorInfo.downloadType = DownloadType.Aria
             else:
-                isValidDl = False
+                pass
         except IndexError:
             replyTo = msg.reply_to_message
             if replyTo:
@@ -1125,18 +1129,18 @@ class MirrorHelper(BaseHelper):
                 for media in [replyTo.document, replyTo.audio, replyTo.video]:
                     if media:
                         if media.mime_type == self.botHelper.torrentFileMimeType:
-                            mirrorInfo.isQbitTorrentDownload = True
+                            mirrorInfo.downloadType = DownloadType.QbitTorrent
                             torrentFile = media.get_file().file_path
                             mirrorInfo.downloadUrl = self.botHelper.getHelper.magnetFromTorrentFile(torrentFile)
                             os.remove(torrentFile)
                         else:
-                            mirrorInfo.isTelegramDownload = True
+                            mirrorInfo.downloadType = DownloadType.Telegram
                         break
             else:
-                isValidDl = False
-        if not isValidDl:
+                pass
+        if mirrorInfo.downloadType == DownloadType.NULL:
             self.logger.info('No Valid Link Provided !')
-        return isValidDl, mirrorInfo
+        return mirrorInfo
 
 
 class StatusHelper(BaseHelper):
@@ -1171,9 +1175,9 @@ class StatusHelper(BaseHelper):
             statusMsgTxt += f'<code>{mirrorInfo.uid}</code> | {mirrorInfo.currentStatus}\n'
             if mirrorInfo.currentStatus in [MirrorStatus.downloadProgress, MirrorStatus.uploadProgress]:
                 if mirrorInfo.currentStatus == MirrorStatus.downloadProgress:
-                    if mirrorInfo.isAriaDownload:
+                    if mirrorInfo.downloadType == DownloadType.Aria:
                         self.botHelper.ariaHelper.updateProgress(mirrorInfo.uid)
-                    if mirrorInfo.isQbitTorrentDownload:
+                    if mirrorInfo.downloadType == DownloadType.QbitTorrent:
                         self.botHelper.qbitTorrentHelper.updateProgress(mirrorInfo.uid)
                 statusMsgTxt += f'S: {self.botHelper.getHelper.readableSize(mirrorInfo.sizeCurrent)} | ' \
                                 f'{self.botHelper.getHelper.readableSize(mirrorInfo.sizeTotal)} | ' \
@@ -1687,7 +1691,6 @@ class MirrorConvHelper(BaseHelper):
 
     def initHelper(self) -> None:
         super().initHelper()
-        self.isValidDl: bool
         self.mirrorInfo: MirrorInfo
         self.FIRST, self.SECOND, self.THIRD, self.FOURTH, self.FIFTH = range(5)
         # TODO: filter - restrict to user who sent MirrorCommand
@@ -1719,17 +1722,17 @@ class MirrorConvHelper(BaseHelper):
                                                         conversation_timeout=120, run_async=True)
 
     def stageZero(self, update: telegram.Update, _: telegram.ext.CallbackContext) -> int:
-        self.isValidDl, self.mirrorInfo = self.botHelper.mirrorHelper.genMirrorInfo(update.message)
-        if self.isValidDl:
+        self.mirrorInfo = self.botHelper.mirrorHelper.genMirrorInfo(update.message)
+        if self.mirrorInfo.downloadType != DownloadType.NULL:
             # <setDefaults>
-            self.mirrorInfo.isGoogleDriveUpload = True
+            self.mirrorInfo.uploadType = UploadType.GoogleDrive
             self.mirrorInfo.googleDriveUploadFolderId = \
                 list(self.botHelper.configHelper.configVars[self.botHelper.configHelper.reqVars[5]].keys())[0]
             # </setDefaults>
             update.message.reply_text(text=self.getMirrorInfoStr(), reply_to_message_id=update.message.message_id,
                                       reply_markup=InlineKeyboardMaker(['Use Defaults', 'Customize']).build(1))
             return self.FIRST
-        if not self.isValidDl:
+        else:
             update.message.reply_text(text='No Valid Link Provided !', reply_to_message_id=update.message.message_id)
             return telegram.ext.ConversationHandler.END
 
@@ -1754,12 +1757,11 @@ class MirrorConvHelper(BaseHelper):
             query.edit_message_text(text='Choose `googleDriveUploadFolder`:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
             return self.THIRD
         elif query.data in ['2', '3']:
-            self.mirrorInfo.isGoogleDriveUpload = False
             self.mirrorInfo.googleDriveUploadFolderId = ''
             if query.data == '2':
-                self.mirrorInfo.isMegaUpload = True
+                self.mirrorInfo.uploadType = UploadType.Mega
             elif query.data == '3':
-                self.mirrorInfo.isTelegramUpload = True
+                self.mirrorInfo.uploadType = UploadType.Telegram
             buttonList = ['isCompress', 'isDecompress', 'Skip']
             query.edit_message_text(text='Choose:', reply_markup=InlineKeyboardMaker(buttonList).build(1))
             return self.FOURTH
@@ -1798,29 +1800,35 @@ class MirrorConvHelper(BaseHelper):
     # TODO: reduce this method code if possible
     def getMirrorInfoStr(self):
         mirrorInfoStr = f'[uid | {self.mirrorInfo.uid}]\n'
-        if self.mirrorInfo.isAriaDownload:
-            mirrorInfoStr += f'[isAriaDownload | True]\n'
-        elif self.mirrorInfo.isGoogleDriveDownload:
-            mirrorInfoStr += f'[isGoogleDriveDownload | True]\n'
-        elif self.mirrorInfo.isMegaDownload:
-            mirrorInfoStr += f'[isMegaDownload | True]\n'
-        elif self.mirrorInfo.isQbitTorrentDownload:
-            mirrorInfoStr += f'[isQbitTorrentDownload | True]\n'
-        elif self.mirrorInfo.isTelegramDownload:
-            mirrorInfoStr += f'[isTelegramDownload | True]\n'
-        elif self.mirrorInfo.isYouTubeDownload:
-            mirrorInfoStr += f'[isYouTubeDownload | True]\n'
-        if self.mirrorInfo.isGoogleDriveUpload:
-            mirrorInfoStr += f'[isGoogleDriveUpload | True]\n'
-        elif self.mirrorInfo.isMegaUpload:
-            mirrorInfoStr += f'[isMegaUpload | True]\n'
-        elif self.mirrorInfo.isTelegramUpload:
-            mirrorInfoStr += f'[isTelegramUpload | True]\n'
+        mirrorInfoStr += '[downloadType | '
+        match self.mirrorInfo.downloadType:
+            case DownloadType.Aria:
+                mirrorInfoStr += 'Aria'
+            case DownloadType.GoogleDrive:
+                mirrorInfoStr += 'GoogleDrive'
+            case DownloadType.Mega:
+                mirrorInfoStr += 'Mega'
+            case DownloadType.QbitTorrent:
+                mirrorInfoStr += 'QbitTorrent'
+            case DownloadType.Telegram:
+                mirrorInfoStr += 'Telegram'
+            case DownloadType.YouTube:
+                mirrorInfoStr += 'YouTube'
+        mirrorInfoStr += ']\n'
+        mirrorInfoStr += '[uploadType | '
+        match self.mirrorInfo.uploadType:
+            case UploadType.GoogleDrive:
+                mirrorInfoStr += 'GoogleDrive'
+            case UploadType.Mega:
+                mirrorInfoStr += 'Mega'
+            case UploadType.Telegram:
+                mirrorInfoStr += 'Telegram'
+        mirrorInfoStr += ']\n'
         if self.mirrorInfo.isCompress:
             mirrorInfoStr += f'[isCompress | True]\n'
-        elif self.mirrorInfo.isDecompress:
+        if self.mirrorInfo.isDecompress:
             mirrorInfoStr += f'[isDecompress | True]\n'
-        if self.mirrorInfo.isGoogleDriveUpload:
+        if self.mirrorInfo.uploadType == UploadType.GoogleDrive:
             mirrorInfoStr += f'[googleDriveUploadFolderId | {self.mirrorInfo.googleDriveUploadFolderId}]'
         return mirrorInfoStr
 
@@ -1961,8 +1969,7 @@ class AriaHelper(BaseHelper):
         dlPath = self.botHelper.mirrorHelper.mirrorInfos[uid].path
         dlContent = os.path.join(dlPath, os.listdir(dlPath)[0])
         if os.path.isfile(dlContent) and (magic.Magic(mime=True).from_file(dlContent) == self.botHelper.torrentFileMimeType):
-            self.botHelper.mirrorHelper.mirrorInfos[uid].isAriaDownload = False
-            self.botHelper.mirrorHelper.mirrorInfos[uid].isQbitTorrentDownload = True
+            self.botHelper.mirrorHelper.mirrorInfos[uid].downloadType = DownloadType.QbitTorrent
             self.botHelper.mirrorHelper.mirrorInfos[uid].downloadUrl = self.botHelper.getHelper.magnetFromTorrentFile(dlContent)
             os.remove(dlContent)
             os.rmdir(self.botHelper.mirrorHelper.mirrorInfos[uid].path)
@@ -2018,7 +2025,7 @@ class GoogleDriveHelper(BaseHelper):
         isFolder = False
         if self.getMetadataById(sourceId, 'mimeType') == self.googleDriveFolderMimeType:
             isFolder = True
-        if mirrorInfo.isGoogleDriveUpload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress):
+        if (mirrorInfo.uploadType == UploadType.GoogleDrive) and not (mirrorInfo.isCompress or mirrorInfo.isDecompress):
             if isFolder:
                 folderId = self.cloneFolder(sourceFolderId=sourceId, parentFolderId=mirrorInfo.googleDriveUploadFolderId, uid=mirrorInfo.uid)
                 self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].uploadUrl = self.baseFolderDownloadUrl.format(folderId)
@@ -2036,7 +2043,7 @@ class GoogleDriveHelper(BaseHelper):
         raise NotImplementedError
 
     def addUpload(self, mirrorInfo: 'MirrorInfo') -> None:
-        if not (mirrorInfo.isGoogleDriveDownload and not (mirrorInfo.isCompress or mirrorInfo.isDecompress)):
+        if not ((mirrorInfo.downloadType == DownloadType.GoogleDrive) and not (mirrorInfo.isCompress or mirrorInfo.isDecompress)):
             currVars = {MirrorInfo.UpdatableVars[0]: self.botHelper.getHelper.folderSize(mirrorInfo.path)}
             self.botHelper.mirrorHelper.mirrorInfos[mirrorInfo.uid].updateVars(currVars)
             uploadPath = os.path.join(mirrorInfo.path, os.listdir(mirrorInfo.path)[0])
@@ -2756,15 +2763,8 @@ class MirrorInfo:
         self.numLeechers: int = 0
         self.uploadUrl: str = ''
         self.googleDriveUploadFolderId: str = ''
-        self.isAriaDownload: bool = False
-        self.isGoogleDriveDownload: bool = False
-        self.isMegaDownload: bool = False
-        self.isQbitTorrentDownload: bool = False
-        self.isTelegramDownload: bool = False
-        self.isYouTubeDownload: bool = False
-        self.isGoogleDriveUpload: bool = False
-        self.isMegaUpload: bool = False
-        self.isTelegramUpload: bool = False
+        self.downloadType: DownloadType = DownloadType.NULL
+        self.uploadType: UploadType = UploadType.NULL
         self.isCompress: bool = False
         self.isDecompress: bool = False
 
@@ -2830,6 +2830,23 @@ class UrlRegex:
     googleDrive = r"https://drive\.google\.com/(drive)?/?u?/?\d?/?(mobile)?/?(file)?(folders)?/?d?/([-\w]+)[?+]?/?(w+)?"
     mega = r"((https|http)://)?(www\.)?mega\.nz/[\w\-]+"
     youTube = r"((https|http)://)?((www|m)\.)?(youtube\.com|youtu\.be)/(watch\?v=)?[\w\-]+"
+
+
+class DownloadType(enum.Enum):
+    NULL = 0
+    Aria = 1
+    GoogleDrive = 2
+    Mega = 3
+    QbitTorrent = 4
+    Telegram = 5
+    YouTube = 6
+
+
+class UploadType(enum.Enum):
+    NULL = 0
+    GoogleDrive = 1
+    Mega = 2
+    Telegram = 3
 
 
 class WebhookServer:
