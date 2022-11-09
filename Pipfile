@@ -4,16 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-aria2p = "==0.10.4"
-google-api-python-client = "==2.7.0"
+aria2p = "==0.11.2"
+google-api-python-client = "==2.65.0"
 google-auth-httplib2 = "==0.1.0"
-google-auth-oauthlib = "==0.4.4"
-psutil = "==5.8.0"
-python-magic = "==0.4.24"
-python-telegram-bot = "==13.5"
-qbittorrent-api = "==2021.8.23"
+google-auth-oauthlib = "==0.7.1"
+psutil = "==5.9.4"
+python-magic = "==0.4.27"
+python-telegram-bot = "==13.14"
+qbittorrent-api = "==2022.10.39"
 torrentool = "==1.1.1"
-youtube_dl = "==2021.6.6"
+youtube_dl = "==2021.12.17"
 
 [dev-packages]
 build = "*"
