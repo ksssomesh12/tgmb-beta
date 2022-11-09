@@ -46,7 +46,8 @@ RUN locale-gen en_US.UTF-8
 RUN pip3 install --no-cache-dir /root/sdk/bindings/python/dist/megasdk-*.whl
 WORKDIR /usr/src/app
 RUN chmod 777 /usr/src/app
-COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+COPY Pipfile .
+COPY grt.py .
+RUN python3 grt.py && pip3 install --no-cache-dir -r requirements.txt
 COPY tgmb tgmb
 CMD ["python3", "-m", "tgmb"]
