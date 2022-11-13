@@ -2,6 +2,8 @@ name: pypi-release
 
 on:
   push:
+    branches:
+      - "refactor-**"
     tags:
       - "v*.*"
 
@@ -13,11 +15,11 @@ jobs:
         id: setup_python
         uses: actions/setup-python@v4.3.0
         with:
-          python-version: 3.9
+          python-version: 3.10
 
       - name: Checkout Repo
         id: checkout_repo
-        uses: actions/checkout@v2.5.0
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -26,6 +28,7 @@ jobs:
         env:
           PKG_VER: ${{ github.ref }}
         run: |
+          python3 grt.py
           python3 -m pip install build --user
           python3 -m build
           ls -shl dist/
