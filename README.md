@@ -70,6 +70,29 @@ A Telegram Bot to Mirror Files to Cloud Drives
 - helper processes { aria2c, qbittorrent-nox, telegram-bot-api } are started as child processes self-handled by the python module
 - support for using custom tracker list for qbittorrent
 
+# Configuration
+
+## Required
+
+- **botToken** - botToken
+- **botOwnerId** - botOwnerId
+- **telegramApiId** - telegramApiId
+- **telegramApiHash** - telegramApiHash
+- **googledriveAuth** - googleDriveAuth
+- **googleDriveUploadFolderIds** - googleDriveUploadFolderIds
+
+## Optional
+
+- **ariaConf** - ariaConf
+- **authorizedChats** - authorizedChats
+- **dlRootDir** - dlRootDir
+- **logLevel** - logLevel
+- **megaAuth** - megaAuth
+- **qbitTorrentConf** - qbitTorrentConf
+- **statusUpdateInterval** - statusUpdateInterval
+- **trackersListUrl** - trackersListUrl
+- **ytdlFormat** - ytdlFormat
+
 # Samples
 
 ## `config.json`
