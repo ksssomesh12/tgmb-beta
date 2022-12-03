@@ -64,13 +64,13 @@ COPY --from=sdk /root/sdk /root/sdk
 ENV DEBIAN_FRONTEND='noninteractive'
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends \
-        aria2 curl ffmpeg jq locales nano pv python3 python3-pip python3-lxml tzdata \
-        libc++-dev libmagic-dev libcrypto++-dev libfreeimage-dev software-properties-common \
+    apt-get install --yes \
+        software-properties-common \
         && \
     add-apt-repository ppa:qbittorrent-team/qbittorrent-stable && \
     apt-get install --yes --no-install-recommends \
-        qbittorrent-nox \
+        aria2 curl ffmpeg jq locales nano pv python3 python3-pip python3-lxml qbittorrent-nox tzdata \
+        libc++-dev libmagic-dev libcrypto++-dev libfreeimage-dev \
         && \
     rm -rf /var/lib/apt/lists/*
 RUN locale-gen en_US.UTF-8
