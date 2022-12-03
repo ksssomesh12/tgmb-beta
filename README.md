@@ -69,3 +69,176 @@ A Telegram Bot to Mirror Files to Cloud Drives
 - sync config files to google drive at every restart
 - helper processes { aria2c, qbittorrent-nox, telegram-bot-api } are started as child processes self-handled by the python module
 - support for using custom tracker list for qbittorrent
+
+# Samples
+
+## `config.json`
+
+```json
+{
+  "botToken": "",
+  "botOwnerId": "",
+  "telegramApiId": "",
+  "telegramApiHash": "",
+  "googleDriveAuth": {
+    "authType": "",
+    "authInfos": {
+      "credsJson": {
+        "installed": {
+          "client_id": "",
+          "project_id": "",
+          "auth_uri": "",
+          "token_uri": "",
+          "auth_provider_x509_cert_url": "",
+          "client_secret": "",
+          "redirect_uris": [
+            "",
+            ""
+          ]
+        }
+      },
+      "saJson": {
+        "type": "",
+        "project_id": "",
+        "private_key_id": "",
+        "private_key": "",
+        "client_email": "",
+        "client_id": "",
+        "auth_uri": "",
+        "token_uri": "",
+        "auth_provider_x509_cert_url": "",
+        "client_x509_cert_url": ""
+      },
+      "tokenJson": {
+        "token": "",
+        "refresh_token": "",
+        "token_uri": "",
+        "client_id": "",
+        "client_secret": "",
+        "scopes": [
+          ""
+        ],
+        "expiry": ""
+      }
+    }
+  },
+  "googleDriveUploadFolderIds": {
+    "#folderId-01": "#folderDescription-01",
+    "#folderId-02": "#folderDescription-02",
+    "#folderId-03": "#folderDescription-03",
+    "#folderId-04": "#folderDescription-04",
+    "#folderId-05": "#folderDescription-05"
+  },
+  "ariaConf": {
+    "allow-overwrite": "true",
+    "follow-torrent": "false",
+    "max-connection-per-server": "8",
+    "min-split-size": "8M",
+    "split": "8"
+  },
+  "authorizedChats": {
+    "#chatId-01": {
+      "chatType": "#chatType-01",
+      "chatName": "#chatName-01"},
+    "#chatId-02": {
+      "chatType": "#chatType-02",
+      "chatName": "#chatName-02"},
+    "#chatId-03": {
+      "chatType": "#chatType-03",
+      "chatName": "#chatName-03"},
+    "#chatId-04": {
+      "chatType": "#chatType-04",
+      "chatName": "#chatName-04"},
+    "#chatId-05": {
+      "chatType": "#chatType-05",
+      "chatName": "#chatName-05"}
+  },
+  "dlRootDir": "dl",
+  "logLevel": "INFO",
+  "megaAuth": {
+    "apiKey": "",
+    "emailId": "",
+    "passPhrase": ""
+  },
+  "qbitTorrentConf": {
+    "BitTorrent": {
+      "Session": {
+        "AsyncIOThreadsCount": "8",
+        "MultiConnectionsPerIp": "true",
+        "SlowTorrentsDownloadRate": "100",
+        "SlowTorrentsInactivityTimer": "600"
+      }
+    },
+    "LegalNotice": {
+      "": {
+        "Accepted": "true"
+      }
+    },
+    "Preferences": {
+      "Advanced": {
+        "AnnounceToAllTrackers": "true",
+        "AnonymousMode": "false",
+        "IgnoreLimitsLAN": "true",
+        "RecheckOnCompletion": "true",
+        "LtTrackerExchange": "true"
+      },
+      "Bittorrent": {
+        "AddTrackers": "false",
+        "DHT": "true",
+        "DHTPort": "6881",
+        "LSD": "true",
+        "MaxConnecs": "-1",
+        "MaxConnecsPerTorrent": "-1",
+        "MaxUploads": "-1",
+        "MaxUploadsPerTorrent": "-1",
+        "PeX": "true",
+        "sameDHTPortAsBT": "true"
+      },
+      "Downloads": {
+        "DiskWriteCacheSize": "32",
+        "PreAllocation": "true",
+        "UseIncompleteExtension": "true"
+      },
+      "General": {
+        "PreventFromSuspendWhenDownloading": "true"
+      },
+      "Queueing": {
+        "IgnoreSlowTorrents": "true",
+        "MaxActiveDownloads": "100",
+        "MaxActiveTorrents": "50",
+        "MaxActiveUploads": "50",
+        "QueueingEnabled": "false"
+      },
+      "WebUI": {
+        "Enabled": "true",
+        "Port": "8400",
+        "LocalHostAuth": "false"
+      }
+    }
+  },
+  "statusUpdateInterval": "5",
+  "trackersListUrl": "https://trackerslist.com/all.txt",
+  "ytdlFormat": "best/bestvideo+bestaudio"
+}
+```
+
+## `dynamic.json`
+
+```json
+{
+  "configFolderId": "",
+  "dlWaitTime": "",
+  "fileidJsonId": ""
+}
+```
+
+## `fileid.json`
+
+```json
+{
+  "configJsonId": "",
+  "configJsonHash": "",
+  "configJsonBakId": "",
+  "configJsonBakHash": ""
+}
+```
