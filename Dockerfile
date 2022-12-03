@@ -64,8 +64,8 @@ COPY --from=sdk /root/sdk /root/sdk
 ENV DEBIAN_FRONTEND='noninteractive'
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends \
-        gnupg software-properties-common \
+    apt-get install --yes \
+        software-properties-common \
         && \
     add-apt-repository ppa:qbittorrent-team/qbittorrent-stable && \
     apt-get install --yes --no-install-recommends \
