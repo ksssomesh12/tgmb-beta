@@ -1,0 +1,94 @@
+name: build-image
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build-api:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2.1.0
+        with:
+          registry: docker.io
+          username: sssomeshhh
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Setup Docker Buildx
+        id: setup_buildx
+        uses: docker/setup-buildx-action@v2.2.1
+      - name: Build Load 'api'
+        id: docker_load_api
+        uses: docker/build-push-action@v3.2.0
+        with:
+          builder: ${{ steps.setup_buildx.outputs.name }}
+          target: api
+          cache-from: |
+            type=registry,ref=sssomeshhh/cache:tgmb-api-master
+            type=registry,ref=sssomeshhh/cache:tgmb-api-${{ github.ref_name }}
+          cache-to: |
+            type=registry,ref=sssomeshhh/cache:tgmb-api-${{ github.ref_name }}
+          load: false
+          push: false
+
+  build-sdk:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2.1.0
+        with:
+          registry: docker.io
+          username: sssomeshhh
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Setup Docker Buildx
+        id: setup_buildx
+        uses: docker/setup-buildx-action@v2.2.1
+      - name: Build Load 'sdk'
+        id: docker_load_sdk
+        uses: docker/build-push-action@v3.2.0
+        with:
+          builder: ${{ steps.setup_buildx.outputs.name }}
+          target: sdk
+          cache-from: |
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-master
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-${{ github.ref_name }}
+          cache-to: |
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-${{ github.ref_name }}
+          load: false
+          push: false
+
+  build-app:
+    runs-on: ubuntu-22.04
+    needs: [build-api, build-sdk]
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2.1.0
+        with:
+          registry: ghcr.io
+          username: ksssomesh12
+          password: ${{ secrets.GH_PACKAGES_TOKEN }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2.1.0
+        with:
+          registry: docker.io
+          username: sssomeshhh
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Setup Docker Buildx
+        id: setup_buildx
+        uses: docker/setup-buildx-action@v2.2.1
+      - name: Build Push 'app'
+        id: docker_push_app
+        uses: docker/build-push-action@v3.2.0
+        with:
+          builder: ${{ steps.setup_buildx.name }}
+          target: app
+          cache-from: |
+            type=registry,ref=sssomeshhh/cache:tgmb-api-${{ github.ref_name }}
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-${{ github.ref_name }}
+            type=registry,ref=sssomeshhh/cache:tgmb-app-master
+            type=registry,ref=sssomeshhh/cache:tgmb-app-${{ github.ref_name }}
+          cache-to: |
+            type=registry,ref=sssomeshhh/cache:tgmb-app-${{ github.ref_name }}
+          load: false
+          push: true
+          tags: |
+            ghcr.io/ksssomesh12/tgmb-beta:${{ github.sha }}
+            ghcr.io/ksssomesh12/tgmb-beta:${{ github.ref_name }}

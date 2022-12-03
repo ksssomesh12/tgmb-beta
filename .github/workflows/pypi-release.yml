@@ -7,20 +7,18 @@ on:
 
 jobs:
   create-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Setup Python 3.9
         id: setup_python
         uses: actions/setup-python@v4.3.0
         with:
           python-version: 3.9
-
       - name: Checkout Repo
         id: checkout_repo
         uses: actions/checkout@v3
         with:
           submodules: recursive
-
       - name: Build Dist
         id: build_dist
         env:
@@ -30,7 +28,6 @@ jobs:
           python3 -m pip install build --user
           python3 -m build
           ls -shl dist/
-
       - name: Publish to PyPI
         id: publish_pypi
         uses: pypa/gh-action-pypi-publish@v1.5.1
