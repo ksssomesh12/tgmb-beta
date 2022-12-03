@@ -19,3 +19,26 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
+
+  deploy-package:
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Checkout Repo
+        id: checkout_repo
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Create Package
+        id: create_package
+        run: |
+          rm -rvf ./deploy/.git*
+          tar -cvf deploy.tar deploy
+
+      - name: Upload Package
+        id: upload_package
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            deploy.tar
