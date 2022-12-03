@@ -14,7 +14,6 @@ ARG CC="/usr/bin/clang-14"
 ARG CXX="/usr/bin/clang++-14"
 ARG CXXFLAGS="-stdlib=libc++"
 RUN cd api && \
-    rm -rf .git && \
     mkdir build && \
     cd build && \
     cmake \
@@ -28,6 +27,7 @@ RUN cd api && \
         && \
     cd .. && \
     ls -lh bin/telegram-bot-api*
+RUN rm -rf api/.git
 ########################################################################################################################
 FROM ubuntu AS sdk
 ENV DEBIAN_FRONTEND='noninteractive'
@@ -42,7 +42,6 @@ WORKDIR /root
 COPY sdk sdk
 COPY ac-m4-py.patch .
 RUN cd sdk && \
-    rm -rf .git && \
     mv ../ac-m4-py.patch ./ && \
     git apply ac-m4-py.patch && \
     ./clean.sh && \
@@ -57,6 +56,7 @@ RUN cd sdk && \
     cd bindings/python/ && \
     python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
+RUN rm -rf sdk/.git
 ########################################################################################################################
 FROM ubuntu AS app
 COPY --from=api /root/api/bin/telegram-bot-api /usr/bin/telegram-bot-api
