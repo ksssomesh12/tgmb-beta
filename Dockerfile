@@ -26,12 +26,9 @@ RUN cd sdk && rm -rf .git && mv ../ac-m4-py.patch ./ && git apply ac-m4-py.patch
     make -j $(nproc) && cd bindings/python/ && python3 setup.py bdist_wheel && \
     ls -lh dist/megasdk*
 
-FROM ghcr.io/ksssomesh12/tgmb-beta:api as app-api
-FROM ghcr.io/ksssomesh12/tgmb-beta:sdk as app-sdk
-
 FROM ubuntu:jammy as app
-COPY --from=app-api /root/api/bin/telegram-bot-api /usr/bin/telegram-bot-api
-COPY --from=app-sdk /root/sdk /root/sdk
+COPY --from=api /root/api/bin/telegram-bot-api /usr/bin/telegram-bot-api
+COPY --from=sdk /root/sdk /root/sdk
 ENV DEBIAN_FRONTEND='noninteractive'
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='Asia/Kolkata'
 RUN apt-get update && apt-get upgrade -y && \
