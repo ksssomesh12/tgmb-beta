@@ -93,6 +93,16 @@ A Telegram Bot to Mirror Files to Cloud Drives
 - **trackersListUrl** - trackersListUrl
 - **ytdlFormat** - ytdlFormat
 
+# Google Drive OAuth Credentials
+
+## User Authentication
+
+- 'credsJson'
+
+## Service Account Authentication
+
+- 'saJson'
+
 # Samples
 
 ## `config.json`
