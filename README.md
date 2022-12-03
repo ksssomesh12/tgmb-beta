@@ -242,3 +242,27 @@ A Telegram Bot to Mirror Files to Cloud Drives
   "configJsonBakHash": ""
 }
 ```
+
+# Deployment
+
+## Bot Commands
+
+```text
+start - start the bot
+help - show the help message
+stats - show the statistics of the bot host machine
+ping - ping the bot host machine
+restart - restart the bot
+log - send the log files of the bot
+mirror - mirror any url/torrent/metalink to cloud drive
+status - show the status of all mirrors in progress
+cancel - cancel a mirror in progress
+list - list contents of a folder in cloud drive
+delete - delete
+authorize - authorize a user/group to use the bot
+unauthorize - unauthorize a user/group to use the bot
+sync - sync config file to cloud drive
+config - edit config file
+```
+
+**NOTE**: The above listed command with descriptions can be copied and pasted in 'edit bot commands' section prompt, when editing the bot settings with [@BotFather](https://t.me/botfather)
