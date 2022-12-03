@@ -6,84 +6,54 @@ jobs:
   build-api:
     runs-on: ubuntu-latest
     steps:
-      - name: Login to GitHub Container Registry
+      - name: Login to Docker Hub
         uses: docker/login-action@v2.1.0
         with:
-          registry: ghcr.io
-          username: ksssomesh12
-          password: ${{ secrets.GH_PACKAGES_TOKEN }}
-
+          registry: docker.io
+          username: sssomeshhh
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
       - name: Setup Docker Buildx
         id: setup_buildx
         uses: docker/setup-buildx-action@v2.2.1
-
-      - name: Cache Docker Layers
-        id: cache_docker_layers
-        uses: actions/cache@v3.0.11
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-tgmb-api-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-buildx-tgmb-api-
-
-      - name: Build-Push Docker Image
-        id: docker_build_push
+      - name: Build Load 'api'
+        id: docker_load_api
         uses: docker/build-push-action@v3.2.0
         with:
           builder: ${{ steps.setup_buildx.outputs.name }}
           target: api
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
-          push: true
-          tags: ghcr.io/ksssomesh12/tgmb-beta:api
-
-      - name: Docker Image Digest
-        run: echo ${{ steps.docker_build_push.outputs.digest }}
-
-      - name: Move Docker Layer Cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          cache-from: |
+            type=registry,ref=sssomeshhh/cache:tgmb-api-master
+            type=registry,ref=sssomeshhh/cache:tgmb-api-${{ github.ref_name }}
+          cache-to: |
+            type=registry,ref=sssomeshhh/cache:tgmb-api-${{ github.ref_name }}
+          load: false
+          push: false
 
   build-sdk:
     runs-on: ubuntu-latest
     steps:
-      - name: Login to GitHub Container Registry
+      - name: Login to Docker Hub
         uses: docker/login-action@v2.1.0
         with:
-          registry: ghcr.io
-          username: ksssomesh12
-          password: ${{ secrets.GH_PACKAGES_TOKEN }}
-
+          registry: docker.io
+          username: sssomeshhh
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
       - name: Setup Docker Buildx
         id: setup_buildx
         uses: docker/setup-buildx-action@v2.2.1
-
-      - name: Cache Docker Layers
-        id: cache_docker_layers
-        uses: actions/cache@v3.0.11
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-tgmb-sdk-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-buildx-tgmb-sdk-
-
-      - name: Build-Push Docker Image
-        id: docker_build_push
+      - name: Build Load 'sdk'
+        id: docker_load_sdk
         uses: docker/build-push-action@v3.2.0
         with:
           builder: ${{ steps.setup_buildx.outputs.name }}
           target: sdk
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
-          push: true
-          tags: ghcr.io/ksssomesh12/tgmb-beta:sdk
-
-      - name: Docker Image Digest
-        run: echo ${{ steps.docker_build_push.outputs.digest }}
-
-      - name: Move Docker Layer Cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          cache-from: |
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-master
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-${{ github.ref_name }}
+          cache-to: |
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-${{ github.ref_name }}
+          load: false
+          push: false
 
   build-app:
     runs-on: ubuntu-latest
@@ -95,36 +65,30 @@ jobs:
           registry: ghcr.io
           username: ksssomesh12
           password: ${{ secrets.GH_PACKAGES_TOKEN }}
-
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2.1.0
+        with:
+          registry: docker.io
+          username: sssomeshhh
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
       - name: Setup Docker Buildx
         id: setup_buildx
         uses: docker/setup-buildx-action@v2.2.1
-
-      - name: Cache Docker Layers
-        id: cache_docker_layers
-        uses: actions/cache@v3.0.11
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-tgmb-app-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-buildx-tgmb-app-
-
-      - name: Build-Push Docker Image
+      - name: Build Push Docker Image
         id: docker_build_push
         uses: docker/build-push-action@v3.2.0
         with:
           builder: ${{ steps.setup_buildx.name }}
           target: app
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
+          cache-from: |
+            type=registry,ref=sssomeshhh/cache:tgmb-api-${{ github.ref_name }}
+            type=registry,ref=sssomeshhh/cache:tgmb-sdk-${{ github.ref_name }}
+            type=registry,ref=sssomeshhh/cache:tgmb-app-master
+            type=registry,ref=sssomeshhh/cache:tgmb-app-${{ github.ref_name }}
+          cache-to: |
+            type=registry,ref=sssomeshhh/cache:tgmb-app-${{ github.ref_name }}
+          load: false
           push: true
           tags: |
             ghcr.io/ksssomesh12/tgmb-beta:${{ github.sha }}
             ghcr.io/ksssomesh12/tgmb-beta:${{ github.ref_name }}
-
-      - name: Docker Image Digest
-        run: echo ${{ steps.docker_build_push.outputs.digest }}
-
-      - name: Move Docker Layer Cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
