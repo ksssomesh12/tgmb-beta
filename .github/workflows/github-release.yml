@@ -32,8 +32,12 @@ jobs:
       - name: Create Package
         id: create_package
         run: |
-          rm -rvf ./deploy/.git*
-          tar -cvf deploy.tar deploy
+          cd deploy
+          rm -f .git*
+          python3 srt.py
+          rm -f srt.py
+          cd ..
+          tar -cf deploy.tar deploy
       - name: Upload Package
         id: upload_package
         uses: softprops/action-gh-release@v1
