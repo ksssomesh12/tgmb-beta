@@ -43,8 +43,7 @@ COPY sdk sdk
 COPY ac-m4-py.patch .
 RUN cd sdk && \
     rm -rf .git && \
-    mv ../ac-m4-py.patch ./ && \
-    git apply ac-m4-py.patch && \
+    git apply ../ac-m4-py.patch && \
     ./clean.sh && \
     ./autogen.sh && \
     ./configure \
