@@ -48,3 +48,24 @@ A Telegram Bot to Mirror Files to Cloud Drives
   > [torrentool](https://github.com/idlesign/torrentool)
 
   > [youtube_dl](https://github.com/ytdl-org/youtube-dl)
+
+# Features
+
+## Basic
+
+- mirror direct links
+- mirror metalinks
+- mirror torrents
+- mirror telegram files
+- mirror files after archiving/unarchiving
+- download and upload progress, connection speeds and eta(s)
+- docker support
+- support for service accounts and team drives in google drive
+- mirror 'youtube-dl' supported urls
+
+## Additional
+
+- support for editing config file dynamically on-the-fly
+- sync config files to google drive at every restart
+- helper processes { aria2c, qbittorrent-nox, telegram-bot-api } are started as child processes self-handled by the python module
+- support for using custom tracker list for qbittorrent
