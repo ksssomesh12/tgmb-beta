@@ -72,6 +72,46 @@ A Telegram Bot to Mirror Files to Cloud Drives
 
 # Configuration
 
+## Install Prerequisites
+
+- Install Python3.
+
+```shell
+sudo apt install python3
+```
+
+## Install Dependencies
+
+- Install with Pip.
+
+```shell
+pip install -r requirements.txt
+```
+
+- Install with Pipenv.
+
+```shell
+pipenv install -r requirements.txt
+```
+
+## Download Setup Package
+
+- Download and extract the [deploy package](https://github.com/ksssomesh12/tgmb-beta/releases/latest/download/deploy.tar) corresponding to the latest release.
+
+```shell
+curl -Lo https://github.com/ksssomesh12/tgmb-beta/releases/latest/download/deploy.tar
+tar -xf deploy.tar
+```
+
+## Generate Config Template File
+
+- Generate 'config.template.json'
+
+```shell
+cd deploy
+python setup.py
+```
+
 ## Required
 
 - **botToken** - botToken
@@ -277,6 +317,14 @@ A Telegram Bot to Mirror Files to Cloud Drives
 ```
 
 # Deployment
+
+## Install Prerequisites
+
+- Install Docker.
+
+```shell
+sudo apt install software-properties-common
+```
 
 ## Bot Commands
 
